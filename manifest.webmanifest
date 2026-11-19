@@ -1,0 +1,13 @@
+{
+  "name": "九源祥销售系统",
+  "short_name": "九源祥销售",
+  "description": "手机开单、订单、客户、商品、进货与统计",
+  "start_url": "./index.html#home",
+  "display": "standalone",
+  "background_color": "#f3f6fb",
+  "theme_color": "#1558e8",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

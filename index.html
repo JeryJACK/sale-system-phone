@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#1558e8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="九源祥销售">
+<title>九源祥销售 · 手机端</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./mobile.css">
+</head>
+<body>
+
+<div id="loginView" class="login-view">
+  <div class="login-bg"></div>
+  <div class="login-card">
+    <div class="brand">
+      <div class="brand-mark">N</div>
+      <div>
+        <div class="brand-name">九源祥销售</div>
+        <div class="brand-sub">手机开单 · 库存 · 客户</div>
+      </div>
+    </div>
+    <form id="loginForm" autocomplete="on">
+      <label class="field-label">服务器 API 地址</label>
+      <input id="loginApiBase" class="input" inputmode="url" placeholder="https://118.178.95.24/api">
+      <label class="field-label">账号</label>
+      <input id="loginUsername" class="input" autocomplete="username" placeholder="请输入账号">
+      <label class="field-label">密码</label>
+      <input id="loginPassword" class="input" type="password" autocomplete="current-password" placeholder="请输入密码">
+      <div id="loginError" class="login-error"></div>
+      <button id="loginBtn" class="btn btn-primary btn-lg login-btn" type="submit">登 录</button>
+    </form>
+    <div class="login-note">与电脑端、EXE 共用同一套后端数据</div>
+  </div>
+</div>
+
+<div id="appView" class="app-view hidden">
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="top-logo">N</div>
+      <div>
+        <div id="topShopName" class="top-shop">九源祥销售</div>
+        <div id="topSub" class="top-sub">手机开单</div>
+      </div>
+    </div>
+    <button class="avatar-btn" id="avatarBtn" type="button">我</button>
+  </header>
+
+  <main id="pageContent" class="page-content"></main>
+
+  <nav class="tabbar" id="tabbar">
+    <button class="tab-item is-active" data-page="home" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10.5Z"/></svg>
+      <span>首页</span>
+    </button>
+    <button class="tab-item" data-page="sale" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5"/></svg>
+      <span>开单</span>
+    </button>
+    <button class="tab-item" data-page="orders" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1Z"/><path d="M9 8h6M9 12h6"/></svg>
+      <span>订单</span>
+    </button>
+    <button class="tab-item" data-page="customers" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
+      <span>客户</span>
+    </button>
+    <button class="tab-item" data-page="more" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+      <span>更多</span>
+    </button>
+  </nav>
+</div>
+
+<div id="sheetMask" class="sheet-mask hidden"></div>
+<div id="sheet" class="sheet hidden" role="dialog" aria-modal="true">
+  <div class="sheet-grab"></div>
+  <div class="sheet-head">
+    <div id="sheetTitle" class="sheet-title"></div>
+    <button id="sheetClose" class="icon-btn" type="button" aria-label="关闭">✕</button>
+  </div>
+  <div id="sheetBody" class="sheet-body"></div>
+</div>
+
+<div id="toast" class="toast"></div>
+<div id="loading" class="loading hidden"><div class="spinner"></div><span>加载中…</span></div>
+
+<script src="./config.js"></script>
+<script src="./mobile.js"></script>
+</body>
+</html>
