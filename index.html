@@ -26,7 +26,8 @@
     </div>
     <form id="loginForm" autocomplete="on">
       <label class="field-label">账号</label>
-      <input id="loginUsername" class="input" autocomplete="username" placeholder="请输入账号">
+      <input id="loginUsername" class="input" list="loginUsernameOptions" autocomplete="username" placeholder="请输入账号">
+      <datalist id="loginUsernameOptions"></datalist>
       <label class="field-label">密码</label>
       <input id="loginPassword" class="input" type="password" autocomplete="current-password" placeholder="请输入密码">
       <div id="loginError" class="login-error"></div>
@@ -88,9 +89,10 @@
 <div id="loading" class="loading hidden"><div class="spinner"></div><span>加载中…</span></div>
 
 <script src="./config.js"></script>
-<script src="./mobile.js?v=20261120d"></script>
+<script src="./mobile.js?v=20261120e"></script>
 </body>
 </html>
+
 
 
 

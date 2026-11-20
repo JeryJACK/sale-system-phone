@@ -5,6 +5,8 @@
   'use strict';
 
   const TOKEN_KEY = 'billing_mobile_token';
+  const LOGIN_ACCOUNTS_KEY = 'billing_mobile_login_accounts';
+  const LOGIN_LAST_ACCOUNT_KEY = 'billing_mobile_login_last_account';
   const $ = (id) => document.getElementById(id);
 
   const M = {
@@ -130,6 +132,44 @@
   function parseHash() { return (location.hash || '').replace(/^#/, ''); }
 
   /* ---------------- 登录 ---------------- */
+  function savedLoginAccounts() {
+    try {
+      const list = JSON.parse(localStorage.getItem(LOGIN_ACCOUNTS_KEY) || '[]');
+      if (!Array.isArray(list)) return [];
+      const seen = {};
+      return list.filter((item) => {
+        const name = String(item || '').trim();
+        if (!name || seen[name.toLowerCase()]) return false;
+        seen[name.toLowerCase()] = true;
+        return true;
+      }).slice(0, 20);
+    } catch (e) {
+      return [];
+    }
+  }
+  function renderLoginAccounts() {
+    const list = savedLoginAccounts();
+    const input = $('loginUsername');
+    const options = $('loginUsernameOptions');
+    if (options) {
+      options.innerHTML = list.map((name) => '<option value="' + esc(name) + '"></option>').join('');
+    }
+    if (!input || input.value.trim()) return;
+    let last = localStorage.getItem(LOGIN_LAST_ACCOUNT_KEY) || '';
+    if (!list.some((name) => name.toLowerCase() === last.toLowerCase())) last = list[0] || '';
+    input.value = last;
+  }
+  function rememberLoginAccount(username) {
+    const name = String(username || '').trim();
+    if (!name) return;
+    const list = savedLoginAccounts().filter((item) => item.toLowerCase() !== name.toLowerCase());
+    list.unshift(name);
+    try {
+      localStorage.setItem(LOGIN_ACCOUNTS_KEY, JSON.stringify(list.slice(0, 20)));
+      localStorage.setItem(LOGIN_LAST_ACCOUNT_KEY, name);
+    } catch (e) { /* 本地存储不可用时不影响登录 */ }
+    renderLoginAccounts();
+  }
   function showLogin(message) {
     $('loginView').classList.remove('hidden');
     $('appView').classList.add('hidden');
@@ -159,6 +199,7 @@
       M.token = json.data.token;
       M.user = json.data.staff;
       localStorage.setItem(TOKEN_KEY, M.token);
+      rememberLoginAccount(username);
       $('loginPassword').value = '';
       await enterApp();
     } catch (e) {
@@ -1662,6 +1703,7 @@
   }
   async function boot() {
     bindShell();
+    renderLoginAccounts();
     if (!M.token) { showLogin(''); return; }
     setLoading(true);
     try {
