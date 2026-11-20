@@ -1,95 +1,1243 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<meta name="theme-color" content="#1558e8">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="九源祥销售">
-<title>九源祥销售 · 手机端</title>
-<link rel="manifest" href="./manifest.webmanifest">
-<link rel="icon" href="./icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./mobile.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>进销存打单系统</title>
+<link rel="stylesheet" href="./assets/tailwind.css?v=20261117t">
+<style>
+/* 菜单与滚动条等自定义样式（Tailwind 已预编译为 assets/tailwind.css） */
+.side-item-active { background-color: #2488c8; color:#fff; }
+.scrollbar-thin::-webkit-scrollbar { width:6px;height:6px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background:#aaa; border-radius:3px; }
+.autocomplete-wrap { position:relative; }
+.autocomplete-dropdown { position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ccc;z-index:40;max-height:180px;overflow-y:auto; }
+.autocomplete-item { padding:4px 8px;cursor:pointer; }
+.autocomplete-item:hover { background-color:#e8f4ff; }
+.stat-picker-menu {
+  position:absolute; top:100%; left:0; right:0; margin-top:4px;
+  max-height:16rem; overflow-y:auto; z-index:60;
+  background:rgba(255,255,255,.68);
+  -webkit-backdrop-filter:blur(18px) saturate(160%);
+  backdrop-filter:blur(18px) saturate(160%);
+  border:1px solid rgba(255,255,255,.75);
+  border-radius:10px;
+  box-shadow:0 18px 45px rgba(15,23,42,.22);
+}
+.stat-picker-menu::-webkit-scrollbar { width:6px; height:6px; }
+.stat-picker-menu::-webkit-scrollbar-thumb { background:rgba(100,116,139,.45); border-radius:3px; }
+.menu-item { position:relative; }
+.menu-item::before { content:''; width:6px; height:6px; background:#7b8a99; border-radius:2px; display:inline-block; margin-right:9px; flex-shrink:0; }
+.menu-item.side-item-active::before { background:#fff; }
+/* 左侧菜单自动折叠：收起后保留一条窄边，鼠标移到左侧自动展开 */
+#sideMenu { width:13rem; transition:width .28s cubic-bezier(.4,0,.2,1); }
+#sideMenu .side-menu-content { width:13rem; }
+#sideMenu.is-collapsed { width:6px; overflow:hidden; }
+#sideMenu.is-collapsed:hover { width:13rem; overflow-y:auto; }
+#sideMenu.is-collapsed::after { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:#2488c8; }
+#sideMenu { position:relative; }
+@media print {
+  .no-print { display:none !important; }
+}
+</style>
+<style>
+/* ===== 打印预览单据样式（版式对齐“新增单据”页面） ===== */
+/* 纸张规格参数：一套变量同时驱动屏幕预览与实际打印，切换纸张时只换 class */
+.paper-a4 { --pw:210mm; --ph:297mm; --py:12mm; --px:10mm;
+  --fs-shop:30px; --fs-info:17px; --fs-tag:26px; --fs-no:16px; --fs-row:17px; --fs-tbl:16px; --fs-sum:17px; --fs-sign:17px;
+  --cell-py:7px; --cell-px:5px; --tbl-my:18px; --row-my:12px; --head-mb:18px; }
+.paper-f1 { --pw:241mm; --ph:280mm; --py:10mm; --px:8mm;
+  --fs-shop:26px; --fs-info:15px; --fs-tag:22px; --fs-no:14px; --fs-row:15px; --fs-tbl:14px; --fs-sum:15px; --fs-sign:15px;
+  --cell-py:5px; --cell-px:4px; --tbl-my:12px; --row-my:9px; --head-mb:12px; }
+.paper-f2 { --pw:241mm; --ph:140mm; --py:5mm; --px:6mm;
+  --fs-shop:20px; --fs-info:12px; --fs-tag:17px; --fs-no:11px; --fs-row:12px; --fs-tbl:12px; --fs-sum:12px; --fs-sign:12px;
+  --cell-py:3px; --cell-px:3px; --tbl-my:8px; --row-my:6px; --head-mb:8px; }
+.paper-f3 { --pw:241mm; --ph:93mm; --py:3mm; --px:5mm;
+  --fs-shop:15px; --fs-info:10px; --fs-tag:13px; --fs-no:9px; --fs-row:10px; --fs-tbl:10px; --fs-sum:10px; --fs-sign:10px;
+  --cell-py:2px; --cell-px:2px; --tbl-my:4px; --row-my:3px; --head-mb:4px; }
+
+.bill-doc { font-family: SimSun, 宋体, serif; color:#303133; position:relative; }
+.bill-doc .print-void { position:absolute; top:38%; left:50%; transform:translate(-50%,-50%) rotate(-18deg); font-size:80px; color:rgba(220,38,38,.38); border:6px solid rgba(220,38,38,.38); padding:4px 30px; letter-spacing:14px; z-index:5; pointer-events:none; }
+.bill-doc .bill-head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:var(--head-mb,16px); }
+.bill-doc .bill-shop-name { font-size:var(--fs-shop,22px); font-weight:bold; }
+.bill-doc .bill-shop-info { font-size:var(--fs-info,13px); margin-top:4px; }
+.bill-doc .bill-tag { font-size:var(--fs-tag,17px); }
+.bill-doc .bill-no { font-size:var(--fs-no,13px); margin-top:4px; }
+.bill-doc .bill-info-row { display:flex; justify-content:space-between; font-size:var(--fs-row,13px); margin:var(--row-my,8px) 0; }
+.bill-doc table { width:100%; border-collapse:collapse; margin:var(--tbl-my,14px) 0; font-size:var(--fs-tbl,13px); }
+.bill-doc th, .bill-doc td { border:1px solid #222; padding:var(--cell-py,5px) var(--cell-px,4px); text-align:center; word-break:break-all; }
+.bill-doc .bill-sum-label { text-align:left; }
+.bill-doc .bill-sign { display:flex; justify-content:flex-start; font-size:var(--fs-sign,13px); margin-top:var(--row-my,8px); }
+.bill-doc .bill-sign > div:first-child { flex:0 0 60%; }
+.bill-doc .bill-sign > div:last-child { flex:0 0 auto; }
+
+/* 纸张切换按钮 */
+.paper-btn { border:1px solid #dcdfe6; color:#606266; background:#fff; border-radius:4px; padding:3px 9px; font-size:12px; line-height:1.4; }
+.paper-btn:hover { border-color:#409eff; color:#409eff; }
+.paper-btn.active { border-color:#409eff; color:#409eff; background:#ecf5ff; }
+
+/* ===== 真正打印时的输出：整页输出、页面内留白，不出现浏览器自带页眉页脚 ===== */
+#printArea { display:none; }
+@media print {
+  html, body { margin:0 !important; padding:0 !important; height:auto !important; min-height:0 !important; overflow:visible !important; background:#fff !important; }
+  body > *:not(#printArea) { display:none !important; }
+  #printArea { display:block !important; padding:var(--py,12mm) var(--px,10mm); }
+  #printArea .bill-doc { width:100%; }
+}
+
+/* ===== 业务界面补充样式 ===== */
+.price-history { font-size:11px; color:#9ca3af; line-height:1.25; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; }
+/* 销售明细：新增行“＋”始终固定在左上角，横向滚动/页面滚动都不会丢 */
+#sellTable thead th { position:sticky; top:0; z-index:6; background:#f3f4f6; }
+#sellTable tbody td:first-child { position:sticky; left:0; z-index:4; background:#fff; }
+#sellTable thead th:first-child { position:sticky; left:0; top:0; z-index:9; background:#f3f4f6; }
+#sellTable thead th:first-child button { position:relative; z-index:10; }
+.table-scroll { max-height: calc(100vh - 300px); overflow:auto; }
+.toast { position:fixed; left:50%; bottom:12vh; transform:translateX(-50%); z-index:200; display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none; }
+.toast-item { min-width:220px; max-width:380px; padding:10px 14px; border-radius:6px; color:#fff; font-size:14px; box-shadow:0 8px 24px rgba(0,0,0,.18); animation:toastIn .18s ease-out; }
+.toast-ok { background:#16a34a; }
+.toast-err { background:#dc2626; }
+.toast-info { background:#2563eb; }
+@keyframes toastIn { from { transform:translateY(8px) scale(.98); opacity:0; } to { transform:translateY(0) scale(1); opacity:1; } }
+.login-bg { background:linear-gradient(135deg,#1f3a52 0%,#2488c8 55%,#38bdf8 100%); }
+.stat-row { display:flex; justify-content:space-between; border-bottom:1px solid #f0f0f0; padding:6px 0; font-size:13px; }
+.spec-hidden { color:#b0b4bb !important; text-decoration:line-through; }
+.print-spec-hidden-row { background:#fffafa; }
+.spec-input-with-eye { padding-right:22px !important; }
+.spec-eye-btn { position:absolute; right:3px; top:50%; transform:translateY(-50%); width:18px; height:18px; display:flex; align-items:center; justify-content:center; border:0; padding:0; background:transparent; color:#8b939e; cursor:pointer; z-index:2; }
+.spec-eye-btn:hover { color:#1f2937; }
+.spec-eye-btn.is-hidden { color:#dc2626; }
+.spec-eye-btn:disabled { opacity:.35; cursor:not-allowed; }
+</style>
+<!-- 纸张尺寸（随“纸张”下拉动态改写） -->
+<style id="pageRule">@page { size:210mm 297mm; margin:0; }</style>
 </head>
-<body>
+<body class="bg-gray-100 h-screen overflow-hidden">
 
-<div id="loginView" class="login-view">
-  <div class="login-bg"></div>
-  <div class="login-card">
-    <div class="brand">
-      <div class="brand-mark">N</div>
+<!-- ==================== 登录层 ==================== -->
+<div id="loginOverlay" class="login-bg fixed inset-0 z-[100] flex items-center justify-center">
+  <div class="bg-white rounded-xl shadow-2xl p-7" style="width:400px;max-width:92vw;">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-10 h-10 bg-primaryBlue rounded-lg flex items-center justify-center text-white font-bold text-lg">N</div>
       <div>
-        <div class="brand-name">九源祥销售</div>
-        <div class="brand-sub">手机开单 · 库存 · 客户</div>
+        <div class="text-lg font-semibold text-gray-800">销售打单系统</div>
+        <div class="text-xs text-gray-400">宁夏九源祥有限公司</div>
       </div>
     </div>
-    <form id="loginForm" autocomplete="on">
-      <label class="field-label">服务器 API 地址</label>
-      <input id="loginApiBase" class="input" inputmode="url" placeholder="https://118.178.95.24/api">
-      <label class="field-label">账号</label>
-      <input id="loginUsername" class="input" autocomplete="username" placeholder="请输入账号">
-      <label class="field-label">密码</label>
-      <input id="loginPassword" class="input" type="password" autocomplete="current-password" placeholder="请输入密码">
-      <div id="loginError" class="login-error"></div>
-      <button id="loginBtn" class="btn btn-primary btn-lg login-btn" type="submit">登 录</button>
-    </form>
-    <div class="login-note">与电脑端、EXE 共用同一套后端数据</div>
+    <div class="space-y-3">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">服务器 API 地址</label>
+        <input id="loginApiBase" class="border rounded w-full px-3 py-2 text-sm" placeholder="https://api.example.com/api">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">账号</label>
+        <input id="loginUsername" class="border rounded w-full px-3 py-2 text-sm" value="admin" autocomplete="username">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">密码</label>
+        <input id="loginPassword" type="password" class="border rounded w-full px-3 py-2 text-sm" autocomplete="current-password" onkeydown="if(event.key==='Enter') doLogin()">
+      </div>
+      <div id="loginError" class="text-red-500 text-xs min-h-[16px]"></div>
+      <button onclick="doLogin()" class="w-full bg-primaryBlue hover:bg-blue-600 text-white rounded py-2 text-sm">登 录</button>
+      <div class="text-[11px] text-gray-400 leading-5">
+        地址填写后端接口根路径，例如 <span class="text-gray-600">http://47.100.1.2:8000/api</span> 或 <span class="text-gray-600">https://api.你的域名.com/api</span>。
+      </div>
+    </div>
   </div>
 </div>
 
-<div id="appView" class="app-view hidden">
-  <header class="topbar">
-    <div class="topbar-left">
-      <div class="top-logo">N</div>
-      <div>
-        <div id="topShopName" class="top-shop">九源祥销售</div>
-        <div id="topSub" class="top-sub">手机开单</div>
+<!-- ==================== 应用主体 ==================== -->
+<div id="appShell" class="hidden flex-col h-full">
+<header class="bg-primaryBlue text-white h-12 flex items-center px-4 shrink-0 no-print">
+  <div class="flex items-center gap-3">
+    <div class="w-8 h-8 bg-white rounded flex items-center justify-center text-primaryBlue font-bold">N</div>
+    <span class="text-lg font-medium">宁夏九源祥有限公司销售系统</span>
+  </div>
+  <div class="flex-1"></div>
+  <div class="flex items-center gap-4 text-sm">
+    <span class="text-xs text-white/60">v1.2.1</span>
+    <span><span id="currentUserName">--</span></span>
+    <button onclick="doLogout()" class="border border-white/40 rounded px-3 py-1 text-xs hover:bg-white/10">退出</button>
+  </div>
+</header>
+
+<div class="flex flex-1 overflow-hidden">
+  <!-- 左侧菜单 -->
+  <aside id="sideMenu" class="w-52 bg-sideBg text-gray-200 overflow-y-auto scrollbar-thin shrink-0 no-print">
+    <div class="py-2 side-menu-content">
+      <div class="px-4 py-2 text-gray-400 text-sm">首页</div>
+      <div class="menu-item px-4 py-2 hover:bg-gray-700 cursor-pointer flex items-center gap-2" data-page="home">
+        首页
+      </div>
+
+      <div class="px-4 py-2 text-gray-400 text-sm mt-3">销售管理</div>
+      <div class="menu-item px-4 py-2 side-item-active cursor-pointer flex items-center gap-2" data-page="sale">
+        新增销售
+      </div>
+      <div class="menu-item px-4 py-2 hover:bg-gray-700 cursor-pointer flex items-center gap-2" data-page="orderList">
+        销售订单
+      </div>
+      <div class="menu-item px-4 py-2 hover:bg-gray-700 cursor-pointer flex items-center gap-2" data-page="detail">
+        销售明细
+      </div>
+      <div class="menu-item px-4 py-2 hover:bg-gray-700 cursor-pointer flex items-center gap-2" data-page="customerManage">
+        客户管理
+      </div>
+
+      <div class="px-4 py-2 text-gray-400 text-sm mt-3">库存管理</div>
+      <div class="menu-item px-4 py-2 hover:bg-gray-700 cursor-pointer flex items-center gap-2" data-page="purchase">
+        进货管理
+      </div>
+      <div class="menu-item px-4 py-2 hover:bg-gray-700 cursor-pointer flex items-center gap-2" data-page="stock">
+        商品资料
+      </div>
+
+      <div class="px-4 py-2 text-gray-400 text-sm mt-3">经营报表</div>
+      <div class="menu-item px-4 py-2 hover:bg-gray-700 cursor-pointer flex items-center gap-2" data-page="stat">
+        数据统计
+      </div>
+
+      <div class="px-4 py-2 text-gray-400 text-sm mt-3">系统管理</div>
+      <div class="menu-item px-4 py-2 hover:bg-gray-700 cursor-pointer flex items-center gap-2" data-page="import">
+        数据导入
+      </div>
+      <div class="menu-item px-4 py-2 hover:bg-gray-700 cursor-pointer flex items-center gap-2" data-page="setting">
+        系统设置
       </div>
     </div>
-    <button class="avatar-btn" id="avatarBtn" type="button">我</button>
-  </header>
+  </aside>
 
-  <main id="pageContent" class="page-content"></main>
+  <!-- 主内容区 -->
+  <main class="flex-1 overflow-auto p-4 scrollbar-thin">
+    <!-- ========== 首页 ========== -->
+    <div id="page-home" class="hidden">
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <div class="bg-white rounded border p-4">
+          <div class="text-sm text-gray-500">今日销售额</div>
+          <div class="text-2xl font-bold text-red-500 mt-1">￥<span id="homeTodayAmount">0.00</span></div>
+          <div class="text-xs text-gray-400 mt-1">共 <span id="homeTodayOrders">0</span> 单</div>
+        </div>
+        <div class="bg-white rounded border p-4">
+          <div class="text-sm text-gray-500">本月销售额</div>
+          <div class="text-2xl font-bold text-primaryBlue mt-1">￥<span id="homeMonthAmount">0.00</span></div>
+          <div class="text-xs text-gray-400 mt-1">共 <span id="homeMonthOrders">0</span> 单</div>
+        </div>
+        <div class="bg-white rounded border p-4">
+          <div class="text-sm text-gray-500">客户数</div>
+          <div class="text-2xl font-bold text-gray-700 mt-1"><span id="homeCustomerCount">0</span></div>
+          <div class="text-xs text-gray-400 mt-1">正常合作客户</div>
+        </div>
+        <div class="bg-white rounded border p-4">
+          <div class="text-sm text-gray-500">商品数</div>
+          <div class="text-2xl font-bold text-gray-700 mt-1"><span id="homeGoodsCount">0</span></div>
+          <div class="text-xs text-gray-400 mt-1">在售商品档案</div>
+        </div>
+      </div>
+      <div class="bg-white rounded border overflow-hidden">
+        <div class="bg-tableHeader text-white px-4 py-2 font-medium flex justify-between items-center">
+          <span>最近订单</span>
+          <button onclick="switchPage('sale')" class="text-xs border border-white/50 rounded px-2 py-0.5 hover:bg-white/10">去开单</button>
+        </div>
+        <div class="p-4 overflow-x-auto">
+          <table class="w-full text-sm border">
+            <thead class="bg-gray-100">
+              <tr>
+                <th class="border px-2 py-2">订单号</th>
+                <th class="border px-2 py-2">销售日期</th>
+                <th class="border px-2 py-2">客户</th>
+                <th class="border px-2 py-2">金额</th>
+              </tr>
+            </thead>
+            <tbody id="homeRecentBody"><tr><td colspan="4" class="text-center text-gray-400 py-6">暂无数据</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-  <nav class="tabbar" id="tabbar">
-    <button class="tab-item is-active" data-page="home" type="button">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10.5Z"/></svg>
-      <span>首页</span>
-    </button>
-    <button class="tab-item" data-page="sale" type="button">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5"/></svg>
-      <span>开单</span>
-    </button>
-    <button class="tab-item" data-page="orders" type="button">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1Z"/><path d="M9 8h6M9 12h6"/></svg>
-      <span>订单</span>
-    </button>
-    <button class="tab-item" data-page="customers" type="button">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
-      <span>客户</span>
-    </button>
-    <button class="tab-item" data-page="more" type="button">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
-      <span>更多</span>
-    </button>
-  </nav>
+    <!-- ========== 新增销售 ========== -->
+    <div id="page-sale">
+      <div class="bg-white rounded border overflow-hidden">
+        <div class="bg-tableHeader text-white px-4 py-2 font-medium flex justify-between items-center">
+          <div class="flex items-center gap-2">
+            <button id="btnBackArrow" onclick="backToOrderList()" class="hidden text-white text-xl leading-none px-1" title="返回上一级界面">←</button>
+            <span id="salePageTitle">新增销售</span>
+          </div>
+          <span id="salePageHint" class="text-xs opacity-90">输入品名联想 → 选择规格 → 自动带出编码与客户价；没有的规格直接输入，自动生成编码</span>
+        </div>
+        <div id="editOrderNotice" class="hidden px-4 py-2 text-xs border-b bg-yellow-50 text-yellow-800 flex items-center gap-3">
+          <span>正在编辑订单：<b id="editOrderNo"></b></span>
+          <span id="editOrderStatus" class="px-2 py-0.5 rounded bg-green-100 text-green-700">正常</span>
+          <span class="text-gray-500">客户信息已锁定，不可更换客户</span>
+        </div>
+        <div class="p-4">
+          <!-- 店铺信息只读展示 -->
+          <div class="mb-3 p-3 border bg-slate-50 text-sm">
+            <div class="font-bold text-lg" id="shopNameShow">店铺名称</div>
+            <div>地址：<span id="shopAddrShow">--</span></div>
+            <div>电话：<span id="shopTelShow">--</span></div>
+          </div>
+
+          <!-- 顶部单据信息行 -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 text-sm">
+            <div class="flex items-center gap-1">
+              <label class="w-20">订单编号：</label>
+              <input id="sellOrderNo" class="border px-2 py-1 bg-gray-100 flex-1" readonly>
+            </div>
+
+            <div class="flex items-center gap-1 autocomplete-wrap">
+              <label class="w-20">客户：</label>
+              <input id="sellCustomerInput" class="border px-2 py-1 flex-1" placeholder="输入客户编号/名称可搜索" autocomplete="off">
+              <div id="customerDropdown" class="autocomplete-dropdown hidden"></div>
+            </div>
+
+            <div class="flex items-center gap-1">
+              <label class="w-20">客户地址：</label>
+              <input id="custAddr" class="border px-2 py-1 flex-1">
+            </div>
+
+            <div class="flex items-center gap-1">
+              <label class="w-20">客户电话：</label>
+              <input id="custTel" class="border px-2 py-1 flex-1">
+            </div>
+
+            <div class="flex items-center gap-1">
+              <label class="w-20">销售日期：</label>
+              <input type="date" id="sellDate" class="border px-2 py-1 flex-1">
+              <input type="checkbox" id="sellReturn" class="ml-2">
+              <label for="sellReturn" class="text-red-500 whitespace-nowrap">退货</label>
+            </div>
+
+            <div class="flex items-center gap-1">
+              <label class="w-20">客户编号：</label>
+              <input id="custNo" class="border px-2 py-1 flex-1 bg-gray-100" readonly placeholder="选择客户后自动显示">
+            </div>
+
+            <div class="flex items-center gap-1 md:col-span-3">
+              <label class="w-20">单据备注：</label>
+              <input id="billRemark" class="border px-2 py-1 flex-1">
+            </div>
+          </div>
+
+          <div id="customerPriceTip" class="hidden mb-2 text-xs text-blue-600"></div>
+
+          <!-- 销售明细表格 -->
+          <div class="overflow-x-auto border mb-4">
+            <table id="sellTable" class="w-full text-sm" style="table-layout:fixed;min-width:1360px">
+              <colgroup>
+                <col style="width:2%">
+                <col style="width:11%">
+                <col style="width:13%">
+                <col style="width:15.5%">
+                <col style="width:9%">
+                <col style="width:5.5%">
+                <col style="width:7.5%">
+                <col style="width:7.5%">
+                <col style="width:10.5%">
+                <col style="width:10.5%">
+                <col style="width:8%">
+              </colgroup>
+              <thead class="bg-gray-100">
+                <tr>
+                  <th class="w-10 py-2"><button id="addRowBtn" onclick="addRow()" class="text-green-600 text-xl leading-none" title="新增一行">＋</button></th>
+                  <th class="py-2">编码</th>
+                  <th class="py-2">品名</th>
+                  <th class="py-2">规格</th>
+                  <th class="py-2">单位</th>
+                  <th class="py-2">数量</th>
+                  <th class="py-2">单价</th>
+                  <th class="py-2">金额</th>
+                  <th class="py-2">生产日期</th>
+                  <th class="py-2">保质期至</th>
+                  <th class="py-2">备注</th>
+                </tr>
+              </thead>
+              <tbody id="sellTableBody"></tbody>
+            </table>
+          </div>
+
+          <!-- 底部合计与按钮 -->
+          <div class="flex justify-between items-center">
+            <div class="text-lg">单据总金额：<span class="text-red-500 font-bold" id="totalAmount">0.00</span> 元</div>
+            <div class="flex items-center gap-3">
+              <div class="flex items-center gap-1">
+                <span class="text-sm text-gray-600">纸张</span>
+                <button type="button" data-paper="a4" onclick="onPaperChange('a4')" class="paper-btn">A4</button>
+                <button type="button" data-paper="f1" onclick="onPaperChange('f1')" class="paper-btn">一等分</button>
+                <button type="button" data-paper="f2" onclick="onPaperChange('f2')" class="paper-btn">二等分</button>
+                <button type="button" data-paper="f3" onclick="onPaperChange('f3')" class="paper-btn">三等分</button>
+              </div>
+              <button id="btnBackOrder" onclick="backToOrderList()" class="hidden border border-gray-300 text-gray-600 px-4 py-2 rounded">返回</button>
+              <button id="btnVoidOrder" onclick="voidCurrentOrder()" class="hidden bg-red-500 text-white px-4 py-2 rounded">作废单据</button>
+              <button onclick="printSellBill()" class="bg-green-500 text-white px-4 py-2 rounded">打印单据</button>
+              <button id="btnSaveOrder" onclick="saveSellOrder()" class="bg-primaryBlue text-white px-4 py-2 rounded">保存单据</button>
+              <button id="btnClearOrder" onclick="clearSellForm()" class="bg-gray-400 text-white px-4 py-2 rounded">清空</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 订单列表 ========== -->
+    <div id="page-orderList" class="hidden">
+      <div class="bg-white rounded border overflow-hidden">
+        <div class="bg-tableHeader text-white px-4 py-2 font-medium">销售订单</div>
+        <div class="p-4">
+          <div class="flex flex-wrap gap-2 items-center mb-3 text-sm">
+            <input id="orderKw" class="border px-2 py-1" placeholder="订单号 / 客户编号 / 客户">
+            <input type="date" id="orderFrom" class="border px-2 py-1">
+            <span class="text-gray-400">至</span>
+            <input type="date" id="orderTo" class="border px-2 py-1">
+            <button onclick="loadOrders()" class="bg-primaryBlue text-white px-3 py-1 rounded">查询</button>
+            <button onclick="resetOrderFilters()" class="border px-3 py-1 rounded text-gray-600">重置</button>
+            <button onclick="batchVoidOrders()" class="border border-red-300 text-red-600 px-3 py-1 rounded">批量作废</button>
+            <button onclick="batchReturnOrders()" class="border border-orange-300 text-orange-600 px-3 py-1 rounded">批量退货</button>
+            <span id="batchOrderHint" class="text-xs text-gray-500">未选择</span>
+            <span class="text-gray-400 text-xs ml-auto" id="orderCountHint"></span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th class="border px-2 py-2 w-10"><input type="checkbox" id="orderCheckAll" onclick="toggleAllOrderChecks(this)" title="全选"></th>
+                  <th class="border px-2 py-2">订单号</th>
+                  <th class="border px-2 py-2">销售日期</th>
+                  <th class="border px-2 py-2">开单时间</th>
+                  <th class="border px-2 py-2">客户</th>
+                  <th class="border px-2 py-2">是否退货</th>
+                  <th class="border px-2 py-2">状态</th>
+                  <th class="border px-2 py-2">数量合计</th>
+                  <th class="border px-2 py-2">总金额</th>
+                  <th class="border px-2 py-2">操作</th>
+                </tr>
+              </thead>
+              <tbody id="orderListBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 销售明细 ========== -->
+    <div id="page-detail" class="hidden">
+      <div class="bg-white rounded border overflow-hidden">
+        <div class="bg-tableHeader text-white px-4 py-2 font-medium">销售明细</div>
+        <div class="p-4">
+          <div class="flex flex-wrap gap-2 items-center mb-3 text-sm">
+            <input id="detailKw" class="border px-2 py-1" placeholder="订单号 / 客户编号 / 客户 / 商品">
+            <input type="date" id="detailFrom" class="border px-2 py-1">
+            <span class="text-gray-400">至</span>
+            <input type="date" id="detailTo" class="border px-2 py-1">
+            <button onclick="loadDetailList()" class="bg-primaryBlue text-white px-3 py-1 rounded">查询</button>
+            <button onclick="resetDetailFilters()" class="border px-3 py-1 rounded text-gray-600">重置</button>
+            <span class="text-gray-400 text-xs ml-auto" id="detailCountHint"></span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th class="border px-2 py-2">订单号</th>
+                  <th class="border px-2 py-2">销售日期</th>
+                  <th class="border px-2 py-2">客户</th>
+                  <th class="border px-2 py-2">产品编号</th>
+                  <th class="border px-2 py-2">产品名称</th>
+                  <th class="border px-2 py-2">规格</th>
+                  <th class="border px-2 py-2">单位</th>
+                  <th class="border px-2 py-2">数量</th>
+                  <th class="border px-2 py-2">单价</th>
+                  <th class="border px-2 py-2">金额</th>
+                  <th class="border px-2 py-2">生产日期</th>
+                  <th class="border px-2 py-2">保质期至</th>
+                  <th class="border px-2 py-2">备注</th>
+                </tr>
+              </thead>
+              <tbody id="detailBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 客户管理 ========== -->
+    <div id="page-customerManage" class="hidden">
+      <div class="bg-white rounded border overflow-hidden">
+        <div class="bg-tableHeader text-white px-4 py-2 font-medium">客户管理</div>
+        <div class="p-4">
+          <div class="flex flex-wrap gap-2 mb-3 items-center text-sm">
+            <input id="newCustomerNo" class="border px-3 py-1 w-40 font-mono text-xs bg-gray-100" placeholder="保存后自动生成" readonly>
+            <input id="newCustomerName" class="border px-3 py-1" placeholder="客户名称">
+            <input id="newCustomerAddr" class="border px-3 py-1" placeholder="客户地址">
+            <input id="newCustomerTel" class="border px-3 py-1" placeholder="客户电话">
+            <input id="newCustomerRemark" class="border px-3 py-1" placeholder="备注">
+            <button onclick="addCustomer()" class="bg-primaryBlue text-white px-3 py-1 rounded">新增客户</button>
+            <span class="flex-1"></span>
+            <input id="customerSearch" class="border px-2 py-1" placeholder="搜索编号/名称" oninput="renderCustomerManage()">
+          </div>
+          <div id="customerListWrap" class="overflow-x-auto"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 商品资料 ========== -->
+    <div id="page-stock" class="hidden">
+      <div class="bg-white rounded border overflow-hidden">
+        <div class="bg-tableHeader text-white px-4 py-2 font-medium">商品资料</div>
+        <div class="p-4">
+          <div class="flex flex-wrap gap-2 mb-3 items-center text-sm">
+            <input id="newGoodsCode" class="border px-3 py-1 bg-gray-100 text-gray-500 w-32" placeholder="编码自动生成" readonly>
+            <input id="newGoodsName" class="border px-3 py-1" placeholder="品名">
+            <input id="newGoodsSpec" class="border px-3 py-1" placeholder="规格">
+            <input id="newGoodsUnit" list="unitOptions" class="border px-3 py-1 w-20" placeholder="单位（可选可输）">
+            <select id="newGoodsShelfUnit" class="border px-2 py-1 w-16" title="保质期单位">
+              <option value="day">天</option>
+              <option value="month">月</option>
+              <option value="year">年</option>
+            </select>
+            <input id="newGoodsShelfLife" type="number" step="1" min="0" class="border px-3 py-1 w-20" placeholder="保质期数值">
+            <input id="newGoodsPrice" type="number" step="0.01" min="0" class="border px-3 py-1 w-24" placeholder="参考价">
+            <button onclick="addGoods()" class="bg-primaryBlue text-white px-3 py-1 rounded">新增商品</button>
+            <span class="flex-1"></span>
+            <span id="goodsSelectedCount" class="text-xs text-gray-500"></span>
+            <button id="batchDeleteGoodsBtn" onclick="batchDeleteGoods()" disabled class="border border-red-300 text-red-500 px-3 py-1 rounded disabled:opacity-40">批量删除</button>
+            <input id="goodsSearch" class="border px-2 py-1" placeholder="搜索编码/品名" oninput="renderGoodsManage()">
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th class="border px-2 py-2 w-10"><input id="goodsCheckAll" type="checkbox" title="全选当前列表" onchange="toggleGoodsSelection(this.checked)"></th>
+                  <th class="border px-2 py-2">编码</th>
+                  <th class="border px-2 py-2">品名</th>
+                  <th class="border px-2 py-2">规格</th>
+                  <th class="border px-2 py-2">单位</th>
+                  <th class="border px-2 py-2">保质期</th>
+                  <th class="border px-2 py-2">参考价</th>
+                  <th class="border px-2 py-2">操作</th>
+                </tr>
+              </thead>
+              <tbody id="goodsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 进货管理 ========== -->
+    <div id="page-purchase" class="hidden">
+      <div class="bg-white rounded border overflow-hidden mb-4">
+        <div class="bg-tableHeader text-white px-4 py-2 font-medium flex justify-between items-center">
+          <span>新增进货单</span>
+          <span class="text-xs opacity-90">进货入库是库存与成本的唯一数据来源</span>
+        </div>
+        <div class="p-4">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 text-sm">
+            <div class="flex items-center gap-1">
+              <label class="w-20">进货单号：</label>
+              <input id="purchaseNo" class="border px-2 py-1 bg-gray-100 flex-1" readonly>
+            </div>
+            <div class="flex items-center gap-1">
+              <label class="w-20">供应商：</label>
+              <input id="purchaseSupplier" class="border px-2 py-1 flex-1" placeholder="供应商名称">
+            </div>
+            <div class="flex items-center gap-1">
+              <label class="w-20">进货日期：</label>
+              <input type="date" id="purchaseDate" class="border px-2 py-1 flex-1">
+            </div>
+            <div class="flex items-center gap-1 md:col-span-3">
+              <label class="w-20">单据备注：</label>
+              <input id="purchaseRemark" class="border px-2 py-1 flex-1">
+            </div>
+          </div>
+
+          <div class="overflow-x-auto border mb-4">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th class="w-10 py-2"><button id="addPurchaseRowBtn" onclick="addPurchaseRow()" class="text-green-600 text-xl leading-none" title="新增一行">＋</button></th>
+                  <th class="py-2">编码</th>
+                  <th class="py-2">品名</th>
+                  <th class="py-2">规格</th>
+                  <th class="py-2">单位</th>
+                  <th class="py-2">数量</th>
+                  <th class="py-2">进货价</th>
+                  <th class="py-2">金额</th>
+                  <th class="py-2">生产日期</th>
+                  <th class="py-2">保质期至</th>
+                  <th class="py-2">备注</th>
+                  <th class="w-10 py-2"></th>
+                </tr>
+              </thead>
+              <tbody id="purchaseTableBody"></tbody>
+            </table>
+          </div>
+
+          <div class="flex justify-between items-center">
+            <div class="text-lg">入库总金额：<span class="text-red-500 font-bold" id="purchaseTotal">0.00</span> 元</div>
+            <div class="flex items-center gap-3">
+              <span id="purchaseModeHint" class="text-xs text-gray-500"></span>
+              <button id="cancelPurchaseEditBtn" onclick="exitPurchaseEdit()" class="hidden border border-gray-400 text-gray-600 px-3 py-2 rounded">取消编辑</button>
+              <button id="savePurchaseBtn" onclick="savePurchase()" class="bg-primaryBlue text-white px-4 py-2 rounded">保存进货单</button>
+              <button onclick="clearPurchaseForm()" class="bg-gray-400 text-white px-4 py-2 rounded">清空</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded border overflow-hidden">
+        <div class="bg-tableHeader text-white px-4 py-2 font-medium">进货单列表</div>
+        <div class="p-4">
+          <div class="flex flex-wrap gap-2 items-center mb-3 text-sm">
+            <input id="purchaseKw" class="border px-2 py-1" placeholder="进货单号 / 供应商">
+            <input type="date" id="purchaseFrom" class="border px-2 py-1">
+            <span class="text-gray-400">至</span>
+            <input type="date" id="purchaseTo" class="border px-2 py-1">
+            <button onclick="loadPurchases()" class="bg-primaryBlue text-white px-3 py-1 rounded">查询</button>
+            <button onclick="resetPurchaseFilters()" class="border px-3 py-1 rounded text-gray-600">重置</button>
+            <span class="text-gray-400 text-xs ml-auto" id="purchaseCountHint"></span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th class="border px-2 py-2">进货单号</th>
+                  <th class="border px-2 py-2">进货日期</th>
+                  <th class="border px-2 py-2">供应商</th>
+                  <th class="border px-2 py-2">数量</th>
+                  <th class="border px-2 py-2">金额</th>
+                  <th class="border px-2 py-2">状态</th>
+                  <th class="border px-2 py-2">操作</th>
+                </tr>
+              </thead>
+              <tbody id="purchaseListBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 统计页面 ========== -->
+    <div id="page-stat" class="hidden">
+      <div class="bg-white rounded border overflow-visible mb-4">
+        <div class="bg-tableHeader text-white px-4 py-2 font-medium rounded-t">经营统计筛选</div>
+        <div class="p-3 text-sm flex flex-wrap gap-3 items-end">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">指标</label>
+            <select id="statType" class="border px-2 py-1">
+              <option value="turnover">营业额</option>
+              <option value="profit">利润</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">维度</label>
+            <select id="statTarget" class="border px-2 py-1">
+              <option value="goods">商品</option>
+              <option value="customer">客户</option>
+              <option value="customer_goods">客户单品</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">时间颗粒</label>
+            <select id="statGran" class="border px-2 py-1">
+              <option value="day">日</option>
+              <option value="week">周</option>
+              <option value="month" selected>月</option>
+              <option value="quarter">季度</option>
+              <option value="year">年</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">开始日期</label>
+            <input type="date" id="statFrom" class="border px-2 py-1">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">结束日期</label>
+            <input type="date" id="statTo" class="border px-2 py-1">
+          </div>
+          <div class="relative" style="min-width:220px;">
+            <label class="block text-xs text-gray-500 mb-1">商品（可模糊检索，可多选）</label>
+            <div class="border px-2 py-1 rounded flex flex-wrap gap-1 items-center bg-white">
+              <div id="statGoodsChips" class="flex flex-wrap gap-1"></div>
+              <input id="statGoodsSearch" autocomplete="off" class="flex-1 min-w-[90px] outline-none text-sm" placeholder="输入编码或品名">
+            </div>
+            <div id="statGoodsMenu" class="stat-picker-menu hidden text-sm"></div>
+          </div>
+          <div class="relative" style="min-width:220px;">
+            <label class="block text-xs text-gray-500 mb-1">客户（可模糊检索，可多选）</label>
+            <div class="border px-2 py-1 rounded flex flex-wrap gap-1 items-center bg-white">
+              <div id="statCustomerChips" class="flex flex-wrap gap-1"></div>
+              <input id="statCustomerSearch" autocomplete="off" class="flex-1 min-w-[90px] outline-none text-sm" placeholder="输入客户编号或名称">
+            </div>
+            <div id="statCustomerMenu" class="stat-picker-menu hidden text-sm"></div>
+          </div>
+          <label class="flex items-center gap-1 text-xs text-gray-600 mb-1">
+            <input type="checkbox" id="statSnapshot"> 按开单成本显示
+          </label>
+          <button onclick="loadStatSummary()" class="bg-primaryBlue text-white px-3 py-1 rounded">刷新</button>
+          <button onclick="exportStatCsv()" class="border px-3 py-1 rounded text-gray-600">导出</button>
+          <span id="statHint" class="text-xs text-gray-400 ml-auto"></span>
+        </div>
+      </div>
+
+      <div class="bg-white rounded border overflow-hidden mb-4">
+        <div class="bg-tableHeader text-white px-4 py-2 font-medium flex justify-between items-center">
+          <span>排行榜</span>
+          <select id="statSort" onchange="renderStatChart()" class="text-xs px-2 py-1 rounded text-gray-700">
+            <option value="amount_desc">金额降序</option>
+            <option value="amount_asc">金额升序</option>
+            <option value="name_asc">名称升序</option>
+          </select>
+        </div>
+        <div id="statBarChart" style="height:340px;"></div>
+        <div class="border-t">
+          <div class="px-4 py-2 text-xs text-gray-500 flex flex-wrap gap-3 items-center border-b bg-gray-50">
+            <span>趋势（点击上方条形图查看对象走势）</span>
+            <div class="ml-auto flex flex-wrap items-center gap-3">
+              <label class="flex items-center gap-1">趋势指标
+                <select id="statTrendMetric" onchange="renderStatCharts()" class="border px-2 py-1 text-gray-700">
+                  <option value="turnover">营业额</option>
+                  <option value="profit">利润</option>
+                </select>
+              </label>
+              <label class="flex items-center gap-1">附加曲线
+                <select id="statTrendExtra" onchange="renderStatCharts()" class="border px-2 py-1 text-gray-700">
+                  <option value="none">不显示</option>
+                  <option value="cost">成本</option>
+                  <option value="margin">毛利率</option>
+                </select>
+              </label>
+              <label class="flex items-center gap-1 text-gray-600">
+                <input type="checkbox" id="statTrendLabels" onchange="renderStatCharts()"> 显示数据标签
+              </label>
+            </div>
+          </div>
+          <div class="flex flex-col lg:flex-row">
+            <div class="flex-1 min-w-0">
+              <div id="statTrendChart" style="height:320px;"></div>
+            </div>
+            <div class="w-full lg:w-[330px] border-t lg:border-t-0 lg:border-l border-gray-200">
+              <div class="px-4 pt-2 text-xs text-gray-500">客户营业额占比（全部客户）</div>
+              <div id="statPieChart" style="height:292px;"></div>
+            </div>
+          </div>
+          <div id="statTrendSummary" class="px-4 py-2 text-xs text-gray-600 border-t bg-gray-50"></div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded border overflow-hidden">
+        <div class="bg-tableHeader text-white px-4 py-2 font-medium">统计明细</div>
+        <div class="p-3 overflow-x-auto max-h-[460px] scrollbar-thin">
+          <table class="w-full text-sm border">
+            <thead class="bg-gray-100" id="statTableHead"></thead>
+            <tbody id="statTableBody"><tr><td class="text-center text-gray-400 py-6">暂无数据</td></tr></tbody>
+          </table>
+          <div id="statPager" class="flex justify-end items-center gap-2 mt-2 text-xs text-gray-600"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 数据导入 ========== -->
+    <div id="page-import" class="hidden">
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div class="bg-white rounded border overflow-hidden">
+          <div class="bg-tableHeader text-white px-4 py-2 font-medium">导入商品（品名即可，编码自动分配）</div>
+          <div class="p-4 text-sm">
+            <div class="text-gray-500 mb-2 leading-6">
+              每行一个商品，列顺序：<b>品名, 规格, 单位, 参考价, 保质期天数</b>（编码留空即由系统自动从 00001 起分配，删除的空号会自动补位）。<br>
+              也兼容“编码, 品名, 规格, 单位, 参考价, 保质期天数”的老格式；支持从 Excel 复制粘贴（制表符分隔）或选择 CSV 文件。
+            </div>
+            <div class="flex gap-2 mb-2">
+              <input type="file" id="goodsFile" accept=".csv,.txt" onchange="readImportFile(this,'importGoodsText')" class="text-xs">
+              <button onclick="downloadTemplate('goods')" class="text-primaryBlue text-xs underline">下载模板</button>
+            </div>
+            <textarea id="importGoodsText" rows="10" class="w-full border border-gray-300 px-2 py-1 font-mono text-xs" placeholder="品名,规格,单位,参考价,保质期天数&#10;海天生抽,500ml,瓶,8.50,365&#10;镇江香醋,500ml,瓶,6.00,540"></textarea>
+            <div class="flex items-center gap-3 mt-2">
+              <button onclick="doImport('goods', this)" class="bg-primaryBlue text-white px-4 py-1.5 rounded">开始导入商品</button>
+              <span id="goodsImportHint" class="text-xs text-gray-500"></span>
+            </div>
+            <div id="goodsImportResult" class="mt-2 text-xs"></div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded border overflow-hidden">
+          <div class="bg-tableHeader text-white px-4 py-2 font-medium">导入客户信息</div>
+          <div class="p-4 text-sm">
+            <div class="text-gray-500 mb-2 leading-6">
+              每行一个客户，列顺序：<b>客户编号, 客户名称, 地址, 电话, 备注</b>（编号/地址/电话/备注可空）。<br>
+              客户编号是价格绑定的唯一编号；名称重复时会更新地址电话，不会产生重复客户。
+            </div>
+            <div class="flex gap-2 mb-2">
+              <input type="file" id="customerFile" accept=".csv,.txt" onchange="readImportFile(this,'importCustomerText')" class="text-xs">
+              <button onclick="downloadTemplate('customers')" class="text-primaryBlue text-xs underline">下载模板</button>
+            </div>
+            <textarea id="importCustomerText" rows="10" class="w-full border px-2 py-1 font-mono text-xs" placeholder="客户编号,客户名称,地址,电话,备注&#10;1001,中卫市XX商行,中卫市XX路1号,13800000000,老客户&#10;1002,兴庆区XX超市,银川市XX街,13900000000,"></textarea>
+            <div class="flex items-center gap-3 mt-2">
+              <button onclick="doImport('customers', this)" class="bg-primaryBlue text-white px-4 py-1.5 rounded">开始导入客户</button>
+              <span id="customerImportHint" class="text-xs text-gray-500"></span>
+            </div>
+            <div id="customerImportResult" class="mt-2 text-xs"></div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded border overflow-hidden xl:col-span-2">
+          <div class="bg-tableHeader text-white px-4 py-2 font-medium">导入客户价格（可选，先有客户和商品再导入）</div>
+          <div class="p-4 text-sm">
+            <div class="text-gray-500 mb-2 leading-6">
+              每行一条价格，列顺序：<b>客户编号, 客户名称, 商品编码, 价格</b>；客户名称可空，但客户编号和商品编码必须已存在。<br>
+              导入的价格会计入该客户该商品的“最近三次价格记忆”，最新导入的价格即为打单自动带出价。
+            </div>
+            <div class="flex gap-2 mb-2">
+              <input type="file" id="priceFile" accept=".csv,.txt" onchange="readImportFile(this,'importPriceText')" class="text-xs">
+              <button onclick="downloadTemplate('prices')" class="text-primaryBlue text-xs underline">下载模板</button>
+            </div>
+            <textarea id="importPriceText" rows="6" class="w-full border px-2 py-1 font-mono text-xs" placeholder="客户编号,客户名称,商品编码,价格&#10;1001,中卫市XX商行,1001,8.50&#10;1001,中卫市XX商行,1002,5.80"></textarea>
+            <div class="flex items-center gap-3 mt-2">
+              <button onclick="doImport('prices', this)" class="bg-primaryBlue text-white px-4 py-1.5 rounded">开始导入价格</button>
+              <span id="priceImportHint" class="text-xs text-gray-500"></span>
+            </div>
+            <div id="priceImportResult" class="mt-2 text-xs"></div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mt-4 text-xs text-yellow-800 leading-6">
+        提示：首次使用建议先导入商品和客户，再逐个客户维护价格。价格也可以不预先维护——第一次打单时手动输入并保存，系统会自动记住该客户该商品最近三次价格，下次输入编码即可自动带出最近一次价格。
+      </div>
+    </div>
+
+    <!-- ========== 系统设置 ========== -->
+    <div id="page-setting" class="hidden">
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div class="bg-white rounded border overflow-hidden">
+          <div class="bg-tableHeader text-white px-4 py-2 font-medium">店铺信息</div>
+          <div class="p-4 space-y-3 max-w-xl text-sm">
+            <div>
+              <label class="block mb-1">店铺名称</label>
+              <input id="setShopName" class="border w-full px-3 py-2">
+            </div>
+            <div>
+              <label class="block mb-1">店铺地址</label>
+              <input id="setShopAddr" class="border w-full px-3 py-2">
+            </div>
+            <div>
+              <label class="block mb-1">联系电话</label>
+              <input id="setShopTel" class="border w-full px-3 py-2">
+            </div>
+            <button onclick="saveShopInfo()" class="bg-primaryBlue text-white px-4 py-2 rounded">保存店铺信息</button>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div class="bg-white rounded border overflow-hidden">
+            <div class="bg-tableHeader text-white px-4 py-2 font-medium">登录密码</div>
+            <div class="p-4 space-y-3 max-w-xl text-sm">
+              <div>
+                <label class="block mb-1">原密码</label>
+                <input id="setOldPassword" type="password" class="border w-full px-3 py-2" autocomplete="current-password">
+              </div>
+              <div>
+                <label class="block mb-1">新密码（至少 6 位）</label>
+                <input id="setNewPassword" type="password" class="border w-full px-3 py-2" autocomplete="new-password">
+              </div>
+              <button onclick="changePassword()" class="bg-primaryBlue text-white px-4 py-2 rounded">修改密码</button>
+            </div>
+          </div>
+
+          <div class="bg-white rounded border overflow-hidden">
+            <div class="bg-tableHeader text-white px-4 py-2 font-medium">库存与成本模式</div>
+            <div class="p-4 space-y-3 max-w-xl text-sm">
+              <div>
+                <label class="block mb-1">模式（保存后只影响之后新产生的单据）</label>
+                <select id="setStockMode" class="border w-full px-3 py-2">
+                  <option value="weight">加权模式：只维护加权成本，允许负库存，补进货后重算历史成本</option>
+                  <option value="batch">批次模式：按批次扣库存，成本锁定，默认禁止负库存</option>
+                </select>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block mb-1">批次出库策略</label>
+                  <select id="setStockStrategy" class="border w-full px-3 py-2">
+                    <option value="fifo">先进先出（FIFO）</option>
+                    <option value="lifo">后进先出（LIFO）</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block mb-1">结账锁定月份（加权）</label>
+                  <input id="setCloseMonth" class="border w-full px-3 py-2" placeholder="如 2026-10，可空">
+                </div>
+              </div>
+              <label class="flex items-center gap-2">
+                <input type="checkbox" id="setAllowNegative">
+                <span>批次模式允许负库存出货</span>
+              </label>
+              <button onclick="saveStockConfig()" class="bg-primaryBlue text-white px-4 py-2 rounded">保存库存模式</button>
+              <div class="text-xs text-gray-500 leading-5">
+                当前模式：<b id="stockModeNow">--</b>。两种模式互斥，切换不迁移历史单据；已结账月份不再重算加权成本。
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded border overflow-hidden">
+            <div class="bg-tableHeader text-white px-4 py-2 font-medium">商品效期记忆</div>
+            <div class="p-4 space-y-3 max-w-xl text-sm">
+              <div class="text-gray-500 text-xs leading-5">
+                加权模式下按商品记住上次生产日期/保质期至，下次选商品自动带出；批次模式不读不写记忆。
+              </div>
+              <div class="flex gap-2 items-center">
+                <select id="clearMemoGoods" class="border px-2 py-2 flex-1"></select>
+                <button onclick="clearDateMemo(false)" class="border px-3 py-2 rounded text-gray-700">清除该商品</button>
+                <button onclick="clearDateMemo(true)" class="border border-red-300 text-red-600 px-3 py-2 rounded">全部清除</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded border overflow-hidden">
+            <div class="bg-tableHeader text-white px-4 py-2 font-medium">服务器接口</div>
+            <div class="p-4 space-y-2 max-w-xl text-sm">
+              <div class="text-gray-500">当前 API 地址（修改后需要重新登录）</div>
+              <input id="setApiBase" class="border w-full px-3 py-2 font-mono text-xs">
+              <button onclick="saveApiBase()" class="border px-4 py-2 rounded text-gray-700">保存接口地址</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
 </div>
+</div><!-- /appShell -->
 
-<div id="sheetMask" class="sheet-mask hidden"></div>
-<div id="sheet" class="sheet hidden" role="dialog" aria-modal="true">
-  <div class="sheet-grab"></div>
-  <div class="sheet-head">
-    <div id="sheetTitle" class="sheet-title"></div>
-    <button id="sheetClose" class="icon-btn" type="button" aria-label="关闭">✕</button>
+<!-- ==================== 商品选择弹窗 ==================== -->
+<div id="productModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 no-print">
+  <div class="bg-white w-[680px] max-h-[80vh] rounded overflow-hidden flex flex-col">
+    <div class="bg-tableHeader text-white px-4 py-2 flex justify-between items-center">
+      <span>选择商品</span>
+      <button onclick="closeProductModal()" class="text-white text-xl leading-none" title="关闭">&times;</button>
+    </div>
+    <div class="p-2">
+      <input id="productSearch" class="w-full border px-2 py-1 mb-2" placeholder="搜索编码/品名" oninput="filterProductList()">
+    </div>
+    <div class="overflow-auto scrollbar-thin flex-1">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-100 sticky top-0">
+          <tr>
+            <th class="border px-2 py-1">编码</th>
+            <th class="border px-2 py-1">品名</th>
+            <th class="border px-2 py-1">规格</th>
+            <th class="border px-2 py-1">单位</th>
+            <th class="border px-2 py-1">客户价</th>
+          </tr>
+        </thead>
+        <tbody id="productModalBody"></tbody>
+      </table>
+    </div>
+    <div class="p-2 border-t">
+      <div class="text-xs text-gray-500 mb-1">新增商品</div>
+      <div class="flex gap-2">
+        <input id="addProdCode" class="border px-2 py-1 w-28" placeholder="编码">
+        <input id="addProdName" class="border px-2 py-1 flex-1" placeholder="品名">
+        <input id="addProdSpec" class="border px-2 py-1 w-32" placeholder="规格">
+        <input id="addProdUnit" list="unitOptions" class="border px-2 py-1 w-20" placeholder="单位">
+        <button onclick="addProduct()" class="bg-green-500 text-white px-2 py-1">新增</button>
+      </div>
+    </div>
   </div>
-  <div id="sheetBody" class="sheet-body"></div>
 </div>
 
-<div id="toast" class="toast"></div>
-<div id="loading" class="loading hidden"><div class="spinner"></div><span>加载中…</span></div>
+<!-- ==================== 批次选择弹窗 ==================== -->
+<div id="batchModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 no-print">
+  <div class="bg-white w-[760px] max-w-[96vw] max-h-[80vh] rounded overflow-hidden flex flex-col">
+    <div class="bg-tableHeader text-white px-4 py-2 flex justify-between items-center">
+      <span>选择批次：<span id="batchGoodsName" class="font-bold"></span></span>
+      <button onclick="closeBatchModal()" class="text-white text-xl leading-none" title="关闭">&times;</button>
+    </div>
+    <div class="px-3 py-2 text-xs text-gray-500 border-b">
+      批次模式按实际批次出库；选择后自动回填生产日期与保质期至。
+    </div>
+    <div class="overflow-auto scrollbar-thin flex-1">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-100 sticky top-0">
+          <tr>
+            <th class="border px-2 py-2">批次号</th>
+            <th class="border px-2 py-2">剩余数量</th>
+            <th class="border px-2 py-2">进货价</th>
+            <th class="border px-2 py-2">生产日期</th>
+            <th class="border px-2 py-2">保质期至</th>
+          </tr>
+        </thead>
+        <tbody id="batchModalBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
 
+<!-- ==================== 客户价格表弹窗 ==================== -->
+<div id="priceModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 no-print">
+  <div class="bg-white w-[1000px] max-w-[96vw] h-[82vh] rounded overflow-hidden flex flex-col">
+    <div class="bg-tableHeader text-white px-4 py-2 flex justify-between items-center">
+      <span>客户价格表：<span id="priceCustomerName" class="font-bold"></span></span>
+      <button onclick="closePriceModal()" class="text-white text-xl leading-none" title="关闭">&times;</button>
+    </div>
+    <div class="p-2 flex gap-2 items-center border-b text-sm">
+      <input id="priceSearch" class="border px-2 py-1 flex-1" placeholder="搜索编码/品名" oninput="renderPriceRows()">
+      <span class="text-xs text-gray-500">直接在“新价格”里输入并保存，即成为该客户该商品的当前价</span>
+    </div>
+    <div class="overflow-auto scrollbar-thin flex-1">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-100 sticky top-0 z-10">
+          <tr>
+            <th class="border px-2 py-1">编码</th>
+            <th class="border px-2 py-1">品名</th>
+            <th class="border px-2 py-1">规格</th>
+            <th class="border px-2 py-1">单位</th>
+            <th class="border px-2 py-1">当前价</th>
+            <th class="border px-2 py-1">近三次价格</th>
+            <th class="border px-2 py-1 w-32">新价格</th>
+            <th class="border px-2 py-1 w-16">操作</th>
+          </tr>
+        </thead>
+        <tbody id="priceTableBody"></tbody>
+      </table>
+    </div>
+    <div class="p-3 border-t text-xs text-gray-500">
+      说明：历史价格按时间倒序保留最近 3 个不同价格；保存新价格后，下一次给该客户打单输入商品编码会自动带出最新价格。
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 客户编辑弹窗 ==================== -->
+<div id="customerModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 no-print">
+  <div class="bg-white w-[440px] max-w-[94vw] rounded overflow-hidden">
+    <div class="bg-tableHeader text-white px-4 py-2 flex justify-between items-center">
+      <span>编辑客户</span>
+      <button onclick="closeCustomerModal()" class="text-white text-xl leading-none" title="关闭">&times;</button>
+    </div>
+    <div class="p-4 space-y-3 text-sm">
+      <input type="hidden" id="editCustomerId">
+      <div><label class="block mb-1">客户编号（数据库自增，不可修改）</label><input id="editCustomerNo" class="border w-full px-3 py-2 font-mono text-xs bg-gray-100" readonly></div>
+      <div><label class="block mb-1">客户名称</label><input id="editCustomerName" class="border w-full px-3 py-2"></div>
+      <div><label class="block mb-1">地址</label><input id="editCustomerAddr" class="border w-full px-3 py-2"></div>
+      <div><label class="block mb-1">电话</label><input id="editCustomerTel" class="border w-full px-3 py-2"></div>
+      <div><label class="block mb-1">备注</label><input id="editCustomerRemark" class="border w-full px-3 py-2"></div>
+      <div class="flex justify-end gap-2">
+        <button onclick="closeCustomerModal()" class="border px-4 py-1.5 rounded">取消</button>
+        <button onclick="saveCustomerEdit()" class="bg-primaryBlue text-white px-4 py-1.5 rounded">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 商品编辑弹窗 ==================== -->
+<div id="goodsModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 no-print">
+  <div class="bg-white w-[480px] max-w-[94vw] rounded overflow-hidden">
+    <div class="bg-tableHeader text-white px-4 py-2 flex justify-between items-center">
+      <span>编辑商品</span>
+      <button onclick="closeGoodsModal()" class="text-white text-xl leading-none" title="关闭">&times;</button>
+    </div>
+    <div class="p-4 space-y-3 text-sm">
+      <input type="hidden" id="editGoodsId">
+      <div><label class="block mb-1">编码（系统自动分配，不可修改）</label><input id="editGoodsCode" class="border w-full px-3 py-2 bg-gray-100 text-gray-600" readonly></div>
+      <div><label class="block mb-1">品名</label><input id="editGoodsName" class="border w-full px-3 py-2"></div>
+      <div><label class="block mb-1">规格</label><input id="editGoodsSpec" class="border w-full px-3 py-2"></div>
+      <div class="grid grid-cols-2 gap-2">
+        <div><label class="block mb-1">最小单位（如 包、袋、kg）</label><input id="editGoodsUnit" list="unitOptions" class="border w-full px-3 py-2" placeholder="选择或输入单位" oninput="syncEditGoodsPrice()"></div>
+        <div><label class="block mb-1">整件价（元/整件）</label><input id="editGoodsCasePrice" type="number" step="0.01" min="0" class="border w-full px-3 py-2" placeholder="输入整件销售价" oninput="syncEditGoodsPrice()"></div>
+      </div>
+      <div>
+        <label class="block mb-1">最小单位单价（系统自动换算，无需手算）</label>
+        <input id="editGoodsPrice" type="number" step="0.0001" min="0" class="border w-full px-3 py-2 bg-gray-100 text-gray-600" readonly>
+        <div id="editGoodsCaseHint" class="text-xs text-gray-400 mt-1">整件价 ÷ 每整件含最小单位数量 = 最小单位单价</div>
+      </div>
+      <div>
+        <label class="block mb-1">包装单位换算（每行一个，格式：单位=倍数；倍数都按最小单位算）</label>
+        <textarea id="editGoodsUnits" rows="3" class="border w-full px-3 py-2" placeholder="包=5&#10;件=20" oninput="syncEditGoodsPrice()"></textarea>
+        <div class="text-xs text-gray-400 mt-1">最小单位倍数固定为 1；可填任意单位，如 袋=24、件=20、箱=120。销售时可切换按最小单位/袋/包/件/箱卖，库存和成本自动折算。</div>
+      </div>
+      <div>
+        <label class="block mb-1">保质期（选定生产日期后自动推算到期日）</label>
+        <div class="flex gap-2">
+          <select id="editGoodsShelfUnit" class="border px-2 py-2 w-20">
+            <option value="day">天</option>
+            <option value="month">月</option>
+            <option value="year">年</option>
+          </select>
+          <input id="editGoodsShelfLife" type="number" step="1" min="0" class="border flex-1 px-3 py-2" placeholder="保质期数值">
+        </div>
+        <div class="text-xs text-gray-400 mt-1">选“天”填天数，选“月”填月数，选“年”填年数；1 个月按 30 天、1 年按 365 天保存</div>
+      </div>
+      <div class="flex justify-end gap-2">
+        <button onclick="closeGoodsModal()" class="border px-4 py-1.5 rounded">取消</button>
+        <button onclick="saveGoodsEdit()" class="bg-primaryBlue text-white px-4 py-1.5 rounded">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 进货单明细弹窗 ==================== -->
+<div id="purchaseDetailModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 no-print">
+  <div class="bg-white w-[1000px] max-w-[96vw] max-h-[86vh] rounded overflow-hidden flex flex-col">
+    <div class="bg-tableHeader text-white px-4 py-2 flex justify-between items-center">
+      <span>进货单明细：<span id="purchaseDetailNo" class="font-mono font-bold"></span></span>
+      <button onclick="closePurchaseDetail()" class="text-white text-xl leading-none" title="关闭">&times;</button>
+    </div>
+    <div id="purchaseDetailMeta" class="px-4 py-3 text-sm bg-gray-50 border-b grid grid-cols-2 gap-x-8 gap-y-1"></div>
+    <div class="flex-1 overflow-auto p-3">
+      <table class="w-full text-sm border">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="border px-2 py-2">编码</th>
+            <th class="border px-2 py-2">品名</th>
+            <th class="border px-2 py-2">规格</th>
+            <th class="border px-2 py-2">单位</th>
+            <th class="border px-2 py-2">数量</th>
+            <th class="border px-2 py-2">单价</th>
+            <th class="border px-2 py-2">金额</th>
+            <th class="border px-2 py-2">折算</th>
+            <th class="border px-2 py-2">生产日期</th>
+            <th class="border px-2 py-2">保质期至</th>
+          </tr>
+        </thead>
+        <tbody id="purchaseDetailBody"></tbody>
+      </table>
+    </div>
+    <div class="px-4 py-3 border-t flex justify-between items-center text-sm bg-gray-50">
+      <span id="purchaseDetailCount" class="text-gray-500"></span>
+      <span>合计金额：<span id="purchaseDetailTotal" class="text-red-600 font-bold text-base"></span></span>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 打印预览弹窗 ==================== -->
+<div id="printPreviewModal" class="fixed inset-0 hidden items-center justify-center no-print" style="background:rgba(0,0,0,.45);z-index:70;">
+  <div class="bg-white rounded shadow-2xl flex flex-col overflow-hidden" style="width:840px;max-width:96vw;max-height:92vh;">
+    <div class="flex items-center justify-between px-5 py-3 border-b">
+      <span class="text-base">打印预览</span>
+      <button onclick="closePrintPreview()" class="text-gray-400 hover:text-gray-600" style="font-size:20px;line-height:1;">&times;</button>
+    </div>
+
+    <div class="flex-1 overflow-auto" style="padding:20px 26px;">
+      <div id="printDom" class="bill-doc">
+        <div id="printVoidMark" class="print-void hidden">作废</div>
+        <div class="bill-head">
+          <div>
+            <div class="bill-shop-name" id="print_shopName"></div>
+            <div class="bill-shop-info"><span id="print_shopAddr"></span>&nbsp;&nbsp;&nbsp;TEL：<span id="print_shopTel"></span></div>
+          </div>
+          <div style="text-align:right;">
+            <div class="bill-tag">[销售单]</div>
+            <div class="bill-no">NO.：<span id="print_orderNo"></span></div>
+          </div>
+        </div>
+
+        <div class="bill-info-row">
+          <div>客户名称：<span id="print_customer"></span></div>
+          <div>客户电话：<span id="print_custTel"></span></div>
+        </div>
+        <div class="bill-info-row">
+          <div>客户地址：<span id="print_custAddr"></span></div>
+          <div>备　　注：<span id="print_billRemark"></span></div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>编码</th>
+              <th>品名</th>
+              <th>规格</th>
+              <th>单位</th>
+              <th>数量</th>
+              <th>单价</th>
+              <th>金额</th>
+              <th>生产日期</th>
+              <th>保质期至</th>
+              <th>备注</th>
+            </tr>
+          </thead>
+          <tbody id="print_tbody"></tbody>
+          <tfoot>
+            <tr>
+              <td colspan="4" class="bill-sum-label">合计（大写）：<span id="print_totalUpper"></span></td>
+              <td><span id="print_totalQty"></span></td>
+              <td></td>
+              <td><span id="print_total"></span></td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div class="bill-sign">
+          <div>送货单位及经手人（盖章）：</div>
+          <div>收货单位及经手人（盖章）：</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between gap-3 px-5 py-3 border-t">
+      <div class="text-xs text-gray-500">当前纸张：<span id="paperHint" class="text-gray-700 font-medium"></span>（在“新增销售”页底部可切换）</div>
+      <div class="flex gap-3">
+        <button onclick="closePrintPreview()" class="border rounded px-5 py-1.5 text-sm">取消</button>
+        <button onclick="doPrint()" class="text-white rounded px-5 py-1.5 text-sm" style="background:#409eff;">打印</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toastWrap" class="toast"></div>
+
+<datalist id="unitOptions">
+  <option value="瓶"></option>
+  <option value="罐"></option>
+  <option value="桶"></option>
+  <option value="件"></option>
+  <option value="箱"></option>
+  <option value="包"></option>
+  <option value="袋"></option>
+  <option value="盒"></option>
+  <option value="支"></option>
+  <option value="条"></option>
+  <option value="块"></option>
+  <option value="片"></option>
+  <option value="个"></option>
+  <option value="只"></option>
+  <option value="提"></option>
+  <option value="排"></option>
+  <option value="板"></option>
+  <option value="听"></option>
+  <option value="管"></option>
+  <option value="扎"></option>
+  <option value="捆"></option>
+  <option value="把"></option>
+  <option value="对"></option>
+  <option value="双"></option>
+  <option value="套"></option>
+  <option value="份"></option>
+  <option value="杯"></option>
+  <option value="碗"></option>
+  <option value="张"></option>
+  <option value="本"></option>
+  <option value="台"></option>
+  <option value="米"></option>
+  <option value="kg"></option>
+  <option value="斤"></option>
+  <option value="g"></option>
+  <option value="两"></option>
+  <option value="克"></option>
+  <option value="千克"></option>
+  <option value="吨"></option>
+  <option value="ml"></option>
+  <option value="L"></option>
+  <option value="升"></option>
+</datalist>
+
+<script src="./assets/echarts.min.js"></script>
 <script src="./config.js"></script>
-<script src="./mobile.js"></script>
+<script src="./app.js?v=20261117x"></script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
