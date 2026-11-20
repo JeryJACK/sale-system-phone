@@ -647,8 +647,8 @@
   }
   function unitSelect(row, index) {
     const units = row.units || [];
-    if (units.length <= 1) {
-      return '<input class="unit-select" value="' + esc(row.unit) + '" onchange="Mobile.setUnit(' + index + ',this.value)">';
+    if (!units.length) {
+      return '<input class="unit-select" value="' + esc(row.unit || '未配置') + '" disabled title="该商品未配置单位，请先在商品资料中补充">';
     }
     return '<select class="unit-select" onchange="Mobile.setUnit(' + index + ',this.value)">' +
       units.map((u) => '<option value="' + esc(u.unit) + '"' + (u.unit === row.unit ? ' selected' : '') + '>' + esc(u.unit) + '</option>').join('') +
