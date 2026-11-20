@@ -5,7 +5,6 @@
   'use strict';
 
   const TOKEN_KEY = 'billing_mobile_token';
-  const BASE_KEY = 'billing_mobile_api_base';
   const $ = (id) => document.getElementById(id);
 
   const M = {
@@ -84,7 +83,8 @@
     return base;
   }
   function getBase() {
-    return M.base || normalizeBase(localStorage.getItem(BASE_KEY) || (window.MOBILE_CONFIG && window.MOBILE_CONFIG.API_BASE) || '');
+    // 服务器地址固定写在 config.js，不在手机端界面展示或修改。
+    return normalizeBase((window.MOBILE_CONFIG && window.MOBILE_CONFIG.API_BASE) || '');
   }
   function setLoading(on) {
     M.loadingCount = Math.max(0, M.loadingCount + (on ? 1 : -1));
@@ -133,18 +133,16 @@
   function showLogin(message) {
     $('loginView').classList.remove('hidden');
     $('appView').classList.add('hidden');
-    const saved = localStorage.getItem(BASE_KEY) || (window.MOBILE_CONFIG && window.MOBILE_CONFIG.API_BASE) || '';
-    $('loginApiBase').value = saved;
     $('loginError').textContent = message || '';
   }
   async function doLogin(event) {
     if (event) event.preventDefault();
-    const base = normalizeBase($('loginApiBase').value);
+    const base = getBase();
     const username = $('loginUsername').value.trim();
     const password = $('loginPassword').value;
     const error = $('loginError');
     error.textContent = '';
-    if (!base) { error.textContent = '请填写服务器 API 地址'; return; }
+    if (!base) { error.textContent = '程序未配置服务器地址，请联系管理员'; return; }
     if (!username || !password) { error.textContent = '请填写账号和密码'; return; }
     const btn = $('loginBtn');
     btn.disabled = true;
@@ -160,7 +158,6 @@
       M.base = base;
       M.token = json.data.token;
       M.user = json.data.staff;
-      localStorage.setItem(BASE_KEY, base);
       localStorage.setItem(TOKEN_KEY, M.token);
       $('loginPassword').value = '';
       await enterApp();
@@ -180,6 +177,7 @@
       M.shop = await api('/shop');
       $('topShopName').textContent = (M.shop && M.shop.name) || '九源祥销售';
       $('topSub').textContent = (M.user.display_name || M.user.username || '') + ' · 手机开单';
+      applyMobilePermissions();
       await loadCustomers();
       await refreshOrderNo();
       await loadStats();
@@ -274,7 +272,59 @@
   }
 
   /* ---------------- 路由与页面 ---------------- */
+  const MOBILE_PAGE_PERMISSIONS = {
+    home: ['home'],
+    sale: ['sale'],
+    orders: ['orderList', 'detail'],
+    customers: ['customerManage'],
+    goods: ['stock'],
+    purchases: ['purchase'],
+    stats: ['stat'],
+    more: []
+  };
+  function canUse(module) {
+    if (!M.user) return true;
+    if (M.user.role === 'admin') return true;
+    return (M.user.permissions || []).indexOf(module) >= 0;
+  }
+  function canDo(key) {
+    if (!M.user) return true;
+    if (M.user.role === 'admin') return true;
+    return (M.user.permissions || []).indexOf(key) >= 0;
+  }
+  function canDoAny(keys) {
+    return (keys || []).some(canDo);
+  }
+  function canView(key) {
+    if (!M.user) return false;
+    if (M.user.role === 'admin') return true;
+    return (M.user.permissions || []).indexOf(key + '.view') >= 0;
+  }
+  function canShow(key) {
+    return canDo(key) || canView(key);
+  }
+  function canUsePage(page) {
+    const required = MOBILE_PAGE_PERMISSIONS[page] || [];
+    if (page === 'more') return true;
+    if (!required.length) return false;
+    return required.some(canUse);
+  }
+  function firstAllowedPage() {
+    return ['home', 'sale', 'orders', 'customers', 'goods', 'purchases', 'stats'].find(canUsePage) || 'more';
+  }
+  function applyMobilePermissions() {
+    document.querySelectorAll('.tab-item').forEach((el) => {
+      const page = el.dataset.page;
+      if (page === 'more') return;
+      el.classList.toggle('hidden', !canUsePage(page));
+    });
+  }
   function go(page) {
+    if (!canUsePage(page)) {
+      const fallback = firstAllowedPage();
+      if (page !== fallback) toast('当前账号没有该模块权限', 'err');
+      page = fallback;
+    }
     closeSheet();
     M.page = page;
     document.querySelectorAll('.tab-item').forEach((el) => el.classList.toggle('is-active', el.dataset.page === page));
@@ -308,6 +358,9 @@
     const todayData = (s && s.today) || {};
     const monthData = (s && s.month) || {};
     const recent = (s && s.recent_orders) || [];
+    const quick = (page, label, svg) => canUsePage(page)
+      ? '<button class="quick-item" onclick="Mobile.go(\'' + page + '\')"><div class="quick-icon">' + svg + '</div><span>' + label + '</span></button>'
+      : '';
     content.innerHTML =
       '<div class="hero">' +
         '<div class="hero-top"><div><div class="hero-label">今日销售额</div>' +
@@ -320,17 +373,17 @@
         '</div>' +
       '</div>' +
       '<div class="quick-grid">' +
-        '<button class="quick-item" onclick="Mobile.go(\'sale\')"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div><span>开单</span></button>' +
-        '<button class="quick-item" onclick="Mobile.go(\'orders\')"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1Z"/><path d="M9 8h6M9 12h6"/></svg></div><span>订单</span></button>' +
-        '<button class="quick-item" onclick="Mobile.go(\'customers\')"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg></div><span>客户</span></button>' +
-        '<button class="quick-item" onclick="Mobile.go(\'goods\')"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 21v-9"/></svg></div><span>商品</span></button>' +
+        quick('sale', '开单', '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>') +
+        quick('orders', '订单', '<svg viewBox="0 0 24 24"><path d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1Z"/><path d="M9 8h6M9 12h6"/></svg>') +
+        quick('customers', '客户', '<svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>') +
+        quick('goods', '商品', '<svg viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 21v-9"/></svg>') +
       '</div>' +
-      '<div class="section-title"><h2>经营概览</h2><span class="link" onclick="Mobile.go(\'stats\')">统计</span></div>' +
+      '<div class="section-title"><h2>经营概览</h2>' + (canUsePage('stats') ? '<span class="link" onclick="Mobile.go(\'stats\')">统计</span>' : '') + '</div>' +
       '<div class="stat-cards">' +
         '<div class="stat-card"><div class="stat-label">客户总数</div><div class="stat-value">' + num(s && s.customer_count) + ' <small>位</small></div></div>' +
         '<div class="stat-card"><div class="stat-label">在售商品</div><div class="stat-value">' + num(s && s.goods_count) + ' <small>种</small></div></div>' +
       '</div>' +
-      '<div class="section-title"><h2>最近订单</h2><span class="link" onclick="Mobile.go(\'orders\')">全部</span></div>' +
+      '<div class="section-title"><h2>最近订单</h2>' + (canUsePage('orders') ? '<span class="link" onclick="Mobile.go(\'orders\')">全部</span>' : '') + '</div>' +
       '<div class="recent-list">' +
         (recent.length ? recent.map((o) => (
           '<button class="recent-row" onclick="Mobile.openOrderDetail(' + o.id + ')">' +
@@ -385,7 +438,7 @@
           '<b><small>￥</small><span id="dockTotal">' + money(cartTotal()) + '</span></b></div>' +
         '<div class="dock-actions">' +
           '<button class="btn btn-ghost" type="button" onclick="Mobile.clearSale()">清空</button>' +
-          '<button class="btn btn-primary" id="saveSaleBtn" type="button" onclick="Mobile.saveSale()">保存单据</button>' +
+          (canShow('sale.save') ? '<button class="btn btn-primary" id="saveSaleBtn" type="button" onclick="Mobile.saveSale()"' + (canDo('sale.save') ? '' : ' disabled') + '>保存单据</button>' : '') +
         '</div>' +
       '</div>';
     bindSaleSearch();
@@ -734,7 +787,7 @@
         '<div class="dock-total"><span>合计 <em id="dockCount">' + M.cart.length + ' 项</em></span>' +
           '<b><small>￥</small><span id="dockTotal">' + money(cartTotal()) + '</span></b></div>' +
         '<div class="dock-actions"><button class="btn btn-ghost" type="button" onclick="Mobile.backToOrders()">返回</button>' +
-          '<button class="btn btn-primary" id="saveSaleBtn" type="button" onclick="Mobile.saveSale()">保存修改</button></div>' +
+          (canDoAny(['sale.save', 'orderList.edit']) ? '<button class="btn btn-primary" id="saveSaleBtn" type="button" onclick="Mobile.saveSale()">保存修改</button>' : '') + '</div>' +
       '</div>';
     bindSaleSearch();
     $('saleDate').addEventListener('change', (e) => { M.saleDate = e.target.value || today(); });
@@ -898,7 +951,7 @@
         )).join('') + '</div>' +
         '<div class="sheet-actions">' +
           (voided ? '' : '<button class="btn btn-ghost" onclick="Mobile.editOrder(' + o.id + ')">修改</button>') +
-          (voided ? '' : '<button class="btn btn-danger" onclick="Mobile.voidOrder(' + o.id + ')">作废</button>') +
+          (voided || !canShow('orderList.void') ? '' : '<button class="btn btn-danger" onclick="Mobile.voidOrder(' + o.id + ')"' + (canDo('orderList.void') ? '' : ' disabled') + '>作废</button>') +
           '<button class="btn btn-primary" onclick="Mobile.closeSheet()">关闭</button>' +
         '</div>';
     } catch (e) {
@@ -999,7 +1052,7 @@
         '<label class="field-label">备注</label><input class="input" id="cfRemark" value="' + esc(c && c.remark) + '" placeholder="选填">' +
       '</form>' +
       '<div class="sheet-actions"><button class="btn btn-ghost" onclick="Mobile.closeSheet()">取消</button>' +
-        '<button class="btn btn-primary" onclick="Mobile.saveCustomer(\'' + (c ? escapeAttr(c.id) : '') + '\')">保存</button></div>');
+        (canDoAny([c ? 'customerManage.edit' : 'customerManage.create']) ? '<button class="btn btn-primary" onclick="Mobile.saveCustomer(\'' + (c ? escapeAttr(c.id) : '') + '\')">保存</button>' : '') + '</div>');
   }
   async function saveCustomer(id) {
     const name = $('cfName').value.trim();
@@ -1049,8 +1102,8 @@
         const life = Number(g.shelf_life_days) > 0 ? num(g.shelf_life_days) + ' 天' : '';
         return '<div class="goods-card"><div class="goods-top"><span class="goods-code">' + esc(g.code) + '</span>' +
           '<div class="goods-name">' + esc(g.name) + '</div>' +
-          '<div class="goods-actions"><button class="goods-edit" type="button" onclick="Mobile.openGoodsForm(' + i + ')">编辑</button>' +
-          '<button class="goods-del" type="button" onclick="Mobile.deleteGoods(' + i + ')">删除</button>' +
+          '<div class="goods-actions">' + (canShow('stock.edit') ? '<button class="goods-edit" type="button" onclick="Mobile.openGoodsForm(' + i + ')"' + (canDo('stock.edit') ? '' : ' disabled') + '>编辑</button>' : '') +
+          (canShow('stock.delete') ? '<button class="goods-del" type="button" onclick="Mobile.deleteGoods(' + i + ')"' + (canDo('stock.delete') ? '' : ' disabled') + '>删除</button>' : '') +
           '<button class="goods-add" type="button" onclick="Mobile.addFromGoods(' + i + ')">开单</button></div></div>' +
           '<div class="goods-spec">' + esc(specText) + (life ? ' · 保质 ' + life : '') + '</div>' +
           '<div class="goods-foot"><span class="unit-chips">' + (units.length ? units.map((u) => '<em>' + esc(u) + '</em>').join('') : '<em>' + esc(g.base_unit || g.unit || '件') + '</em>') + '</span>' +
@@ -1173,7 +1226,7 @@
         '<input type="hidden" id="goodsDefaultPurchase" value="' + esc(g ? (g.default_purchase_unit || (maxPack ? maxPack.unit : baseUnit)) : (maxPack ? maxPack.unit : baseUnit)) + '">' +
         '<div class="sheet-actions goods-form-actions">' +
           '<button class="btn btn-ghost" type="button" onclick="Mobile.closeSheet()">取消</button>' +
-          '<button class="btn btn-primary" id="goodsSaveBtn" type="button" onclick="Mobile.saveGoodsForm()">' + (g ? '保存修改' : '保存商品') + '</button>' +
+          (canDoAny([g ? 'stock.edit' : 'stock.create']) ? '<button class="btn btn-primary" id="goodsSaveBtn" type="button" onclick="Mobile.saveGoodsForm()">' + (g ? '保存修改' : '保存商品') + '</button>' : '') +
         '</div>' +
       '</div>');
     syncGoodsPrice();
@@ -1332,7 +1385,7 @@
           '</div>'
         )).join('') + '</div>' +
         '<div class="sheet-actions">' +
-          (voided ? '' : '<button class="btn btn-danger" onclick="Mobile.voidPurchase(' + p.id + ')">作废</button>') +
+          (voided || !canShow('purchase.void') ? '' : '<button class="btn btn-danger" onclick="Mobile.voidPurchase(' + p.id + ')"' + (canDo('purchase.void') ? '' : ' disabled') + '>作废</button>') +
           '<button class="btn btn-primary" onclick="Mobile.closeSheet()">关闭</button></div>';
     } catch (e) { $('sheetBody').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
   }
@@ -1392,7 +1445,7 @@
         '<div class="dock-total"><span>进货合计 <em id="purchaseDockCount">0 项</em></span>' +
           '<b><small>￥</small><span id="purchaseDockTotal">' + money(purchaseTotal()) + '</span></b></div>' +
         '<div class="dock-actions"><button class="btn btn-ghost" type="button" onclick="Mobile.backToPurchases()">返回</button>' +
-          '<button class="btn btn-primary" type="button" onclick="Mobile.savePurchase()">保存进货</button></div>' +
+          (canDoAny(['purchase.create', 'purchase.edit']) ? '<button class="btn btn-primary" type="button" onclick="Mobile.savePurchase()">保存进货</button>' : '') + '</div>' +
       '</div>';
     const input = $('purchaseSearch');
     input.addEventListener('input', () => {
@@ -1554,36 +1607,23 @@
   function renderMore(content) {
     const name = (M.user && (M.user.display_name || M.user.username)) || '管理员';
     const shop = (M.shop && M.shop.name) || '九源祥销售';
+    const moreItem = (page, icon, label, desc) => canUsePage(page)
+      ? '<button class="more-item" onclick="Mobile.go(\'' + page + '\')"><div class="more-icon">' + icon + '</div><div><div class="more-label">' + label + '</div><div class="more-desc">' + desc + '</div></div></button>'
+      : '';
     content.innerHTML =
-      '<div class="page-head"><div><h1>更多</h1><p>业务入口、统计与账号设置</p></div></div>' +
+      '<div class="page-head"><div><h1>更多</h1><p>业务入口与账号信息</p></div></div>' +
       '<div class="profile-card"><div class="profile-name">' + esc(name) + '</div>' +
       '<div class="profile-sub">' + esc(shop) + ' · 手机端</div>' +
-      '<div class="profile-actions"><button class="btn btn-sm" onclick="Mobile.openApiSettings()">服务器设置</button>' +
-        '<button class="btn btn-sm" onclick="Mobile.logout()">退出登录</button></div></div>' +
+      '<div class="profile-actions"><button class="btn btn-sm" onclick="Mobile.logout()">退出登录</button></div></div>' +
       '<div class="section-title"><h2>业务功能</h2></div>' +
       '<div class="more-grid">' +
-        '<button class="more-item" onclick="Mobile.go(\'goods\')"><div class="more-icon">📦</div><div><div class="more-label">商品资料</div><div class="more-desc">规格 · 单位 · 价格</div></div></button>' +
-        '<button class="more-item" onclick="Mobile.go(\'purchases\')"><div class="more-icon">📥</div><div><div class="more-label">进货管理</div><div class="more-desc">进货单 · 入库</div></div></button>' +
-        '<button class="more-item" onclick="Mobile.go(\'stats\')"><div class="more-icon">📊</div><div><div class="more-label">数据统计</div><div class="more-desc">销售 · 客户 · 商品</div></div></button>' +
-        '<button class="more-item" onclick="Mobile.go(\'customers\')"><div class="more-icon">👤</div><div><div class="more-label">客户管理</div><div class="more-desc">资料 · 历史金额</div></div></button>' +
+        moreItem('goods', '📦', '商品资料', '规格 · 单位 · 价格') +
+        moreItem('purchases', '📥', '进货管理', '进货单 · 入库') +
+        moreItem('stats', '📊', '数据统计', '销售 · 客户 · 商品') +
+        moreItem('customers', '👤', '客户管理', '资料 · 历史金额') +
       '</div>' +
       '<div class="section-title"><h2>说明</h2></div>' +
       '<div class="card" style="font-size:12px;color:var(--muted);line-height:1.8">手机端与电脑端、EXE 共用同一个服务器和数据库。手机端保存的订单会立即出现在电脑端“销售订单”里；电脑端修改的商品价格、客户资料，手机端刷新后同步显示。</div>';
-  }
-  function openApiSettings() {
-    openSheet('服务器设置', '<div class="sheet-form"><label class="field-label">API 地址</label>' +
-      '<input class="input" id="apiBaseInput" value="' + esc(getBase()) + '" inputmode="url">' +
-      '<div class="sheet-sub" style="margin-top:8px">修改后需要重新登录。</div></div>' +
-      '<div class="sheet-actions"><button class="btn btn-ghost" onclick="Mobile.closeSheet()">取消</button>' +
-        '<button class="btn btn-primary" onclick="Mobile.saveApiBase()">保存并重新登录</button></div>');
-  }
-  function saveApiBase() {
-    const base = normalizeBase($('apiBaseInput').value);
-    if (!base) return toast('API 地址不能为空', 'err');
-    localStorage.setItem(BASE_KEY, base);
-    closeSheet();
-    logout();
-    showLogin('接口地址已保存，请重新登录');
   }
 
   /* ---------------- 弹层 ---------------- */
@@ -1644,7 +1684,7 @@
     startPurchase, choosePurchaseSpec, pickPurchaseName, removePurchaseItem, setPurchaseQty,
     stepPurchaseQty, setPurchasePrice, setPurchaseUnit, setPurchaseMakeDate, savePurchase, backToPurchases,
     openPurchaseDetail, voidPurchase,
-    openApiSettings, saveApiBase, closeSheet
+    closeSheet
   };
 
   boot();

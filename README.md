@@ -9,7 +9,7 @@
 
 ## 部署
 把本目录整体放到网页服务器的一个目录下，例如 `https://你的域名/mobile/`。
-打开 `index.html`，在登录页填写 API 地址（生产为 `https://118.178.95.24/api`）并登录。
+API 地址已固定写在 `config.js`，登录页不再显示或允许修改；上线前只需按环境修改 `config.js` 后重新发布。
 手机端与电脑网页版、EXE 共用同一套 FastAPI + MariaDB 后端，不另建数据库。
 
 ## 已实现
@@ -27,4 +27,4 @@ cd mobile
 $env:PREVIEW_PORT=8766
 python _preview_server.py
 ```
-打开 `http://127.0.0.1:8766/index.html`，API 地址填 `http://127.0.0.1:8766/api`。
+打开 `http://127.0.0.1:8766/index.html`。本地联调时把 `config.js` 的 API 地址临时改为 `http://127.0.0.1:8766/api`，验收后改回生产地址。
