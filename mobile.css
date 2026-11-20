@@ -664,6 +664,11 @@ body.page-sale .page-content { padding-bottom: 104px; }
   color: var(--ink-2); font-size: 11px; font-weight: 700;
 }
 .goods-edit:active { background: #e7ecf5; }
+.goods-del {
+  height: 28px; padding: 0 8px; border-radius: 8px; background: #fff1f0;
+  color: var(--red); font-size: 11px; font-weight: 700;
+}
+.goods-del:active { background: #ffe4e1; }
 
 /* 商品编辑表单 */
 .goods-form { padding-bottom: 4px; }

@@ -1050,6 +1050,7 @@
         return '<div class="goods-card"><div class="goods-top"><span class="goods-code">' + esc(g.code) + '</span>' +
           '<div class="goods-name">' + esc(g.name) + '</div>' +
           '<div class="goods-actions"><button class="goods-edit" type="button" onclick="Mobile.openGoodsForm(' + i + ')">编辑</button>' +
+          '<button class="goods-del" type="button" onclick="Mobile.deleteGoods(' + i + ')">删除</button>' +
           '<button class="goods-add" type="button" onclick="Mobile.addFromGoods(' + i + ')">开单</button></div></div>' +
           '<div class="goods-spec">' + esc(specText) + (life ? ' · 保质 ' + life : '') + '</div>' +
           '<div class="goods-foot"><span class="unit-chips">' + (units.length ? units.map((u) => '<em>' + esc(u) + '</em>').join('') : '<em>' + esc(g.base_unit || g.unit || '件') + '</em>') + '</span>' +
@@ -1064,6 +1065,22 @@
     if (!g) return;
     addGoodsToCart(g);
     go('sale');
+  }
+  async function deleteGoods(index) {
+    const g = (M.goods || [])[index];
+    if (!g) return;
+    const tip = '确定删除商品“' + g.name + '”（' + g.code + '）？\n\n' +
+      '没有历史单据的商品会彻底删除并释放编码；有历史单据的商品只停用，编码和单据保留。';
+    if (!confirm(tip)) return;
+    try {
+      const result = await api('/goods/' + g.id, { method: 'DELETE' });
+      toast(result.message || (result.deleted ? '商品已删除' : '商品已停用'), result.deleted ? 'ok' : 'warn');
+      M.allGoods = [];
+      const kw = $('goodsKw') ? $('goodsKw').value.trim() : '';
+      await loadGoodsList(kw);
+    } catch (e) {
+      toast(e.message, 'err');
+    }
   }
   function referencePrice(g) {
     if (g.default_price !== null && g.default_price !== undefined) return Number(g.default_price);
@@ -1619,7 +1636,7 @@
   window.Mobile = {
     go, logout, doLogin, refreshOrderNo,
     openCustomerPicker, chooseCustomer, openCustomerEdit, saveCustomer,
-    pickGoodsName, chooseSpec, addGoodsToCart, addFromGoods, removeCart, setQty, stepQty, setPrice, setUnit,
+    pickGoodsName, chooseSpec, addGoodsToCart, addFromGoods, deleteGoods, removeCart, setQty, stepQty, setPrice, setUnit,
     openGoodsForm, addGoodsPackRow, removeGoodsPackRow, setGoodsBaseUnit, markGoodsBaseChips, syncGoodsPrice, saveGoodsForm,
     setMakeDate, setExpDate, focusSaleSearch,
     clearSale, saveSale, backToOrders,
