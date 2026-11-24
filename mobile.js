@@ -131,6 +131,48 @@
   }
   function parseHash() { return (location.hash || '').replace(/^#/, ''); }
 
+  /* ---------------- 手机视口 / 键盘 ---------------- */
+  function isEditable(el) {
+    if (!el || !el.tagName) return false;
+    const tag = el.tagName.toLowerCase();
+    return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable;
+  }
+  function syncViewport() {
+    const vv = window.visualViewport;
+    const height = Math.round(vv ? vv.height : window.innerHeight);
+    const offset = Math.round(vv ? (vv.offsetTop || 0) : 0);
+    document.documentElement.style.setProperty('--app-height', height + 'px');
+    document.documentElement.style.setProperty('--vv-offset', offset + 'px');
+  }
+  function bindViewport() {
+    syncViewport();
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', syncViewport);
+      window.visualViewport.addEventListener('scroll', syncViewport);
+    }
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('orientationchange', () => setTimeout(syncViewport, 120));
+
+    document.addEventListener('focusin', (event) => {
+      if (!isEditable(event.target)) return;
+      document.body.classList.add('keyboard-open');
+      syncViewport();
+      // 等键盘/视口动画完成后再把输入框拉到可视区域中上部，避免被底栏或键盘盖住。
+      setTimeout(syncViewport, 80);
+      setTimeout(() => {
+        if (!isEditable(event.target) || document.activeElement !== event.target) return;
+        try { event.target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' }); } catch (e) { event.target.scrollIntoView(); }
+      }, 320);
+    });
+    document.addEventListener('focusout', () => {
+      setTimeout(() => {
+        if (isEditable(document.activeElement)) return;
+        document.body.classList.remove('keyboard-open');
+        syncViewport();
+      }, 140);
+    });
+  }
+
   /* ---------------- 登录 ---------------- */
   function savedLoginAccounts() {
     try {
@@ -373,7 +415,9 @@
     const content = $('pageContent');
     content.innerHTML = '';
     document.body.classList.toggle('page-sale', page === 'sale');
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    content.scrollTop = 0;
+    if (isEditable(document.activeElement)) document.activeElement.blur();
+    document.body.classList.remove('keyboard-open');
     if (page === 'home') renderHome(content);
     else if (page === 'sale') renderSale(content);
     else if (page === 'orders') renderOrders(content);
@@ -447,8 +491,7 @@
       : '点击选择客户，默认散客';
     content.innerHTML =
       '<div class="sale-head">' +
-        '<div><div class="sale-kicker">SALE ORDER</div><h1>手机开单</h1>' +
-          '<p>搜索商品，调数量、单位与效期，确认后保存</p></div>' +
+        '<div><div class="sale-kicker">SALE ORDER</div><h1>手机开单</h1></div>' +
         '<div class="sale-head-side"><span class="pill pill-blue">新增</span>' +
           '<div class="order-no">' + esc(M.orderNo || '') + '</div></div>' +
       '</div>' +
@@ -459,16 +502,18 @@
           '<span class="chev">›</span>' +
         '</button>' +
         '<div class="meta-divider"></div>' +
-        '<div class="date-line"><span class="meta-label">销售日期</span>' +
-          '<input class="inline-date" type="date" id="saleDate" value="' + esc(M.saleDate) + '"></div>' +
-        '<label class="return-line"><span class="meta-label">退货单</span>' +
-          '<input type="checkbox" id="saleReturn"' + (M.saleReturn ? ' checked' : '') + '>' +
-          '<span class="switch-track"><i></i></span></label>' +
+        '<div class="meta-row">' +
+          '<div class="date-line"><span class="meta-label">销售日期</span>' +
+            '<input class="inline-date" type="date" id="saleDate" value="' + esc(M.saleDate) + '"></div>' +
+          '<label class="return-line"><span class="meta-label">退货</span>' +
+            '<input type="checkbox" id="saleReturn"' + (M.saleReturn ? ' checked' : '') + '>' +
+            '<span class="switch-track"><i></i></span></label>' +
+        '</div>' +
       '</div>' +
       '<div class="search-box sale-search-box">' +
         '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>' +
-        '<input id="saleSearch" placeholder="输入品名 / 编码 / 规格" autocomplete="off">' +
-        '<button class="search-add" type="button" onclick="Mobile.focusSaleSearch()">添加</button>' +
+        '<input id="saleSearch" placeholder="品名 / 编码 / 规格，选中即添加" autocomplete="off" enterkeyhint="search">' +
+        '<button class="search-add" type="button" onclick="Mobile.runSaleSearch()">搜索</button>' +
       '</div>' +
       '<div id="saleSearchResults"></div>' +
       '<div id="cartWrap">' + renderCart() + '</div>' +
@@ -490,7 +535,16 @@
   }
   function focusSaleSearch() {
     const input = $('saleSearch');
-    if (input) input.focus();
+    if (!input) return;
+    try { input.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
+    input.focus();
+  }
+  function runSaleSearch() {
+    const input = $('saleSearch');
+    if (!input) return;
+    const kw = input.value.trim();
+    if (!kw) return focusSaleSearch();
+    searchGoods(kw);
   }
   function bindSaleSearch() {
     const input = $('saleSearch');
@@ -623,25 +677,30 @@
     }
     return '<div class="cart-list">' + M.cart.map((r, i) => {
       const hasExp = Number(r.shelfLifeDays) > 0 || r.makeDate || r.expDate;
-      return '<div class="cart-card">' +
+      const expSummary = (r.makeDate ? '产 ' + r.makeDate : '') + (r.expDate ? (r.makeDate ? ' · ' : '') + '至 ' + r.expDate : '');
+      return '<div class="cart-card" data-index="' + i + '">' +
         '<div class="cart-top"><div class="cart-main"><div class="cart-name">' + esc(r.name) + '</div>' +
           '<div class="cart-spec">' + (displaySpec(r) ? esc(displaySpec(r)) + ' · ' : '') + esc(r.code) +
             (hasExp ? ' · <span class="shelf-tag">保质 ' + Number(r.shelfLifeDays) + ' 天</span>' : '') + '</div></div>' +
           '<button class="cart-del" type="button" aria-label="删除" onclick="Mobile.removeCart(' + i + ')">×</button></div>' +
         '<div class="cart-controls">' +
-          unitSelect(r, i) +
-          '<div class="qty-box"><button class="qty-btn" type="button" onclick="Mobile.stepQty(' + i + ',-1)">−</button>' +
-            '<input class="qty-input" type="number" inputmode="decimal" step="0.01" value="' + esc(r.qty) + '" onchange="Mobile.setQty(' + i + ',this.value)">' +
-            '<button class="qty-btn" type="button" onclick="Mobile.stepQty(' + i + ',1)">＋</button></div>' +
-          '<div class="price-box"><div class="price-label">单价 / ' + esc(r.unit) + '</div>' +
-            '<input class="price-input" type="number" inputmode="decimal" step="0.01" value="' + esc(r.price) + '" onchange="Mobile.setPrice(' + i + ',this.value)"></div>' +
+          '<label class="cart-field unit-field"><span>单位</span>' + unitSelect(r, i) + '</label>' +
+          '<label class="cart-field qty-field"><span>数量</span><div class="qty-box">' +
+            '<button class="qty-btn" type="button" onclick="Mobile.stepQty(' + i + ',-1)">−</button>' +
+            '<input class="qty-input" type="number" inputmode="decimal" step="0.01" value="' + esc(r.qty) + '" oninput="Mobile.setQty(' + i + ',this.value,true)" onchange="Mobile.commitQty(' + i + ',this.value)">' +
+            '<button class="qty-btn" type="button" onclick="Mobile.stepQty(' + i + ',1)">＋</button></div></label>' +
+          '<label class="cart-field price-field"><span>单价 / ' + esc(r.unit) + '</span>' +
+            '<input class="price-input" type="number" inputmode="decimal" step="0.01" value="' + esc(r.price) + '" oninput="Mobile.setPrice(' + i + ',this.value,true)" onchange="Mobile.commitPrice(' + i + ',this.value)"></label>' +
         '</div>' +
-        '<div class="cart-exp">' +
+        '<div class="cart-bottom"><span class="cart-calc">' + esc(r.qty) + ' ' + esc(r.unit) + ' × ￥' + money(r.price) + '</span>' +
+          '<span class="cart-amount">￥' + money(r.amount) + '</span></div>' +
+        '<button class="cart-exp-toggle' + (r.expOpen ? ' is-open' : '') + '" type="button" onclick="Mobile.toggleCartExp(' + i + ')">' +
+          '<span class="exp-label">效期</span><b>' + (expSummary || '未设置') + '</b><i>' + (r.expOpen ? '收起' : '设置') + '</i>' +
+        '</button>' +
+        (r.expOpen ? '<div class="cart-exp">' +
           '<label class="exp-field"><span>生产日期</span><input type="date" value="' + esc(r.makeDate || '') + '" onchange="Mobile.setMakeDate(' + i + ',this.value)"></label>' +
           '<label class="exp-field"><span>保质期至</span><input type="date" value="' + esc(r.expDate || '') + '" onchange="Mobile.setExpDate(' + i + ',this.value)"></label>' +
-        '</div>' +
-        '<div class="cart-bottom"><span>' + esc(r.qty) + ' ' + esc(r.unit) + ' × ￥' + money(r.price) + '</span>' +
-          '<span class="cart-amount">￥' + money(r.amount) + '</span></div>' +
+        '</div>' : '') +
       '</div>';
     }).join('') + '</div>';
   }
@@ -668,25 +727,69 @@
     const btn = $('saveSaleBtn');
     if (btn && !btn.disabled) btn.textContent = M.editingOrderId ? '保存修改' : '保存单据';
   }
-  function setQty(index, value) {
+  function setQty(index, value, live) {
     const row = M.cart[index];
     if (!row) return;
     row.qty = Math.max(0, round4(value));
     row.amount = round4(row.qty * num(row.price));
-    updateCart();
+    if (live) updateRowNumbers(index);
+    else updateCart();
+  }
+  function commitQty(index, value) {
+    const row = M.cart[index];
+    if (!row) return;
+    row.qty = Math.max(0, round4(value));
+    row.amount = round4(row.qty * num(row.price));
+    const card = document.querySelector('.cart-card[data-index="' + index + '"]');
+    const input = card && card.querySelector('.qty-input');
+    if (input) input.value = row.qty;
+    updateRowNumbers(index);
   }
   function stepQty(index, delta) {
     const row = M.cart[index];
     if (!row) return;
     row.qty = Math.max(0, round4(num(row.qty) + delta));
     row.amount = round4(row.qty * num(row.price));
-    updateCart();
+    updateRowNumbers(index);
   }
-  function setPrice(index, value) {
+  function setPrice(index, value, live) {
     const row = M.cart[index];
     if (!row) return;
     row.price = Math.max(0, round4(value));
     row.amount = round4(num(row.qty) * row.price);
+    if (live) updateRowNumbers(index);
+    else updateCart();
+  }
+  function commitPrice(index, value) {
+    const row = M.cart[index];
+    if (!row) return;
+    row.price = Math.max(0, round4(value));
+    row.amount = round4(num(row.qty) * row.price);
+    const card = document.querySelector('.cart-card[data-index="' + index + '"]');
+    const input = card && card.querySelector('.price-input');
+    if (input) input.value = row.price;
+    updateRowNumbers(index);
+  }
+  function updateRowNumbers(index) {
+    const row = M.cart[index];
+    if (!row) return;
+    const card = document.querySelector('.cart-card[data-index="' + index + '"]');
+    if (card) {
+      const calc = card.querySelector('.cart-calc');
+      const amount = card.querySelector('.cart-amount');
+      const qtyInput = card.querySelector('.qty-input');
+      const priceInput = card.querySelector('.price-input');
+      if (calc) calc.textContent = row.qty + ' ' + row.unit + ' × ￥' + money(row.price);
+      if (amount) amount.textContent = '￥' + money(row.amount);
+      if (qtyInput && document.activeElement !== qtyInput) qtyInput.value = row.qty;
+      if (priceInput && document.activeElement !== priceInput) priceInput.value = row.price;
+    }
+    updateDock();
+  }
+  function toggleCartExp(index) {
+    const row = M.cart[index];
+    if (!row) return;
+    row.expOpen = !row.expOpen;
     updateCart();
   }
   function setMakeDate(index, value) {
@@ -803,8 +906,7 @@
     const o = M.editingOrder;
     content.innerHTML =
       '<div class="sale-head">' +
-        '<div><div class="sale-kicker">EDIT ORDER</div><h1>修改订单</h1>' +
-          '<p>客户信息已锁定，可调整商品、数量、价格与效期</p></div>' +
+        '<div><div class="sale-kicker">EDIT ORDER</div><h1>修改订单</h1></div>' +
         '<div class="sale-head-side"><span class="pill pill-green">编辑中</span>' +
           '<div class="order-no">' + esc(o ? o.order_no : '') + '</div></div>' +
       '</div>' +
@@ -812,13 +914,15 @@
         '<div class="customer-line is-readonly"><span class="customer-avatar">' + esc(String(o ? o.customer_name : '散').slice(0, 1)) + '</span>' +
           '<span class="customer-copy"><b>' + esc(o ? o.customer_name : '') + '</b><i>#' + esc(o ? o.customer_no : '') + '</i></span></div>' +
         '<div class="meta-divider"></div>' +
-        '<div class="date-line"><span class="meta-label">销售日期</span><input class="inline-date" type="date" id="saleDate" value="' + esc(M.saleDate) + '"></div>' +
-        '<label class="return-line"><span class="meta-label">退货单</span><input type="checkbox" id="saleReturn"' + (M.saleReturn ? ' checked' : '') + '><span class="switch-track"><i></i></span></label>' +
+        '<div class="meta-row">' +
+          '<div class="date-line"><span class="meta-label">销售日期</span><input class="inline-date" type="date" id="saleDate" value="' + esc(M.saleDate) + '"></div>' +
+          '<label class="return-line"><span class="meta-label">退货</span><input type="checkbox" id="saleReturn"' + (M.saleReturn ? ' checked' : '') + '><span class="switch-track"><i></i></span></label>' +
+        '</div>' +
       '</div>' +
       '<div class="search-box sale-search-box">' +
         '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>' +
-        '<input id="saleSearch" placeholder="搜索商品，继续添加明细" autocomplete="off">' +
-        '<button class="search-add" type="button" onclick="Mobile.focusSaleSearch()">添加</button>' +
+        '<input id="saleSearch" placeholder="搜索商品，继续添加明细" autocomplete="off" enterkeyhint="search">' +
+        '<button class="search-add" type="button" onclick="Mobile.runSaleSearch()">搜索</button>' +
       '</div>' +
       '<div id="saleSearchResults"></div>' +
       '<div id="cartWrap">' + renderCart() + '</div>' +
@@ -1675,11 +1779,13 @@
     body.scrollTop = 0;
     $('sheetMask').classList.remove('hidden');
     $('sheet').classList.remove('hidden');
+    document.body.classList.add('sheet-open');
     document.body.style.overflow = 'hidden';
   }
   function closeSheet() {
     $('sheetMask').classList.add('hidden');
     $('sheet').classList.add('hidden');
+    document.body.classList.remove('sheet-open');
     document.body.style.overflow = '';
   }
 
@@ -1702,6 +1808,7 @@
     });
   }
   async function boot() {
+    bindViewport();
     bindShell();
     renderLoginAccounts();
     if (!M.token) { showLogin(''); return; }
@@ -1720,7 +1827,8 @@
     openCustomerPicker, chooseCustomer, openCustomerEdit, saveCustomer,
     pickGoodsName, chooseSpec, addGoodsToCart, addFromGoods, deleteGoods, removeCart, setQty, stepQty, setPrice, setUnit,
     openGoodsForm, addGoodsPackRow, removeGoodsPackRow, setGoodsBaseUnit, markGoodsBaseChips, syncGoodsPrice, saveGoodsForm,
-    setMakeDate, setExpDate, focusSaleSearch,
+    setMakeDate, setExpDate, focusSaleSearch, runSaleSearch,
+    toggleCartExp, commitQty, commitPrice,
     clearSale, saveSale, backToOrders,
     openOrderDetail, editOrder, voidOrder,
     startPurchase, choosePurchaseSpec, pickPurchaseName, removePurchaseItem, setPurchaseQty,
